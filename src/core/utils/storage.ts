@@ -159,7 +159,7 @@ function uploadFileToQiniu(key: string, filePath: string, logger: Logger): Promi
         const mac = new qiniu.auth.digest.Mac(accessKey, secretKey);
         const conf = new qiniu.conf.Config();
         const bucketManager = new qiniu.rs.BucketManager(mac, conf);
-        bucketManager.stat(bucket, key, (respErr, respBody, respInfo) => {
+        bucketManager.stat(bucket, key, (respErr, _respBody, respInfo) => {
             if (respErr) {
                 reject(new AppError(respErr.message));
                 return;
@@ -242,5 +242,46 @@ export function uploadFileToStorage(key: string, filePath: string, logger: Logge
             return uploadFileToTencentCloud(key, filePath, logger);
         default:
             throw new AppError(`${storageType} storageType does not support.`);
+    }
+}
+
+function deleteFileFromLocal(key: string, logger: Logger): Promise<void> {
+    return new Promise((resolve) => {
+        const storageDir = _.get(config, 'local.storageDir');
+        if (!storageDir) {
+            resolve();
+            return;
+        }
+
+        const subDir = key.substring(0, 2).toLowerCase();
+        const fileName = path.join(storageDir, subDir, key);
+
+        if (fs.existsSync(fileName)) {
+            fs.unlinkSync(fileName);
+            logger.info(`Deleted local file: ${fileName}`);
+        }
+        resolve();
+    });
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function deleteFileFromS3(_key: string, _logger: Logger): Promise<void> {
+    // ... logic xóa S3 (s3.deleteObject)
+    // Để đơn giản, hiện tại ta tập trung vào Local trước
+    return Promise.resolve();
+}
+
+// eslint-disable-next-line import/no-unused-modules
+export function deleteFileFromStorage(key: string, logger: Logger): Promise<void> {
+    const { storageType } = config.common;
+    switch (storageType) {
+        case 'local':
+            return deleteFileFromLocal(key, logger);
+        case 's3':
+            return deleteFileFromS3(key, logger);
+        // Các loại khác tạm thời return resolve
+        default:
+            logger.warn(`Delete not implemented for storage type: ${storageType}`);
+            return Promise.resolve();
     }
 }

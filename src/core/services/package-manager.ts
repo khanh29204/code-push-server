@@ -41,7 +41,7 @@ import {
 import { sequelize } from '../utils/connections';
 import { qetag } from '../utils/qetag';
 import { randToken, uploadPackageType } from '../utils/security';
-import { uploadFileToStorage } from '../utils/storage';
+import { deleteFileFromStorage, uploadFileToStorage } from '../utils/storage';
 import { dataCenterManager } from './datacenter-manager';
 
 class PackageManager {
@@ -801,8 +801,24 @@ class PackageManager {
                 // This assumes dataCenterManager.deletePackage can handle the packageHash
                 // and that the blob_url and manifest_blob_url correspond to files
                 // managed by dataCenterManager.
-                dataCenterManager.deletePackageTmp(packageInfo.package_hash, new Logger()); // Assuming a logger is available or can be instantiated
-                dataCenterManager.deletePackageStorage(packageInfo.manifest_blob_url, new Logger());
+                const logger = new Logger(); // Hoặc lấy logger từ request nếu có thể truyền vào
+
+                // 1. Xóa thư mục cache/tmp (giữ nguyên logic cũ hoặc dùng dataCenterManager)
+                dataCenterManager.deletePackageTmp(packageInfo.package_hash, logger);
+
+                // 2. Xóa file ZIP chính (blob_url) trong Storage thật
+                if (packageInfo.blob_url) {
+                    deleteFileFromStorage(packageInfo.blob_url, logger);
+                }
+
+                // 3. Xóa file Manifest (manifest_blob_url) trong Storage thật
+                if (packageInfo.manifest_blob_url) {
+                    deleteFileFromStorage(packageInfo.manifest_blob_url, logger);
+                }
+
+                // 4. (Tùy chọn) Xóa các file diff liên quan trong bảng packages_diff
+                // Cần query bảng PackagesDiff để lấy list diff_blob_url và xóa chúng khỏi storage
+
                 return true;
                 // You might also want to delete the manifest_blob_url file if it's separate
                 // and managed similarly.
