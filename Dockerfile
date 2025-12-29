@@ -1,68 +1,62 @@
 # ==============================================================================
-# Giai đoạn 1: Cài đặt dependencies (deps stage)
-# Sử dụng Alpine Node LTS base image
-FROM node:lts-alpine AS deps
-
-# Tạo thư mục làm việc
+# Base: Thiết lập môi trường chung
+# Sử dụng Bun trên nền Alpine để tối ưu dung lượng (nhỏ gọn ~50MB)
+FROM oven/bun:1-alpine AS base
 WORKDIR /app
-
-# Chỉ copy các file khai báo dependencies (package.json và lock file)
-COPY package.json package-lock.json* ./
-
-# Cài đặt TẤT CẢ dependencies (bao gồm devDependencies)
-RUN npm ci
+# Cài đặt các công cụ build cần thiết cho module native (như sqlite3)
+# Bun vẫn cần python3, make, g++ để biên dịch các gói C++ native
+RUN apk add --no-cache python3 make g++ 
 
 # ==============================================================================
-# Giai đoạn 2: Build ứng dụng (builder stage)
-# Sử dụng Alpine Node LTS base image
-FROM node:lts-alpine AS builder
+# Stage 1: Cài đặt tất cả dependencies (bao gồm devDependencies để build)
+FROM base AS deps
+COPY package.json bun.lockb* package-lock.json* ./
+# Cài đặt toàn bộ dependencies
+# Ưu tiên bun.lockb nếu có, fallback sang package-lock.json
+RUN bun install --frozen-lockfile || bun install
 
-# Tạo thư mục làm việc
-WORKDIR /app
-
-# Sao chép node_modules đã cài đặt từ giai đoạn deps
+# ==============================================================================
+# Stage 2: Build ứng dụng (TypeScript -> JavaScript)
+FROM base AS builder
+# Copy node_modules từ bước deps
 COPY --from=deps /app/node_modules ./node_modules
-
-# Sao chép toàn bộ mã nguồn từ build context
-# Đảm bảo sử dụng file .dockerignore để loại trừ các thư mục không cần thiết
 COPY . .
-
-# Chạy lệnh build của ứng dụng (nếu có trong package.json)
-RUN npm run build
-
-# Loại bỏ dev dependencies sau khi build xong
-RUN npm prune --production
+# Chạy lệnh build (tsc) để biên dịch ra thư mục bin/
+RUN bun run build
 
 # ==============================================================================
-# Giai đoạn 3: Chạy ứng dụng (runner stage)
-# Sử dụng Alpine Node LTS base image - nhỏ gọn và chứa sẵn Node
-FROM node:lts-alpine AS runner
+# Stage 3: Cài đặt Production Dependencies
+# Bước này tách riêng để loại bỏ devDependencies khỏi image cuối cùng -> Giảm RAM & Disk
+FROM base AS prod-deps
+COPY package.json bun.lockb* package-lock.json* ./
+# Chỉ cài production dependencies
+RUN bun install --frozen-lockfile --production || bun install --production
 
-# Cài đặt PM2 global để dùng pm2-runtime
-RUN npm install -g pm2@latest
-
-# Tạo thư mục làm việc cho ứng dụng trong image cuối cùng
+# ==============================================================================
+# Stage 4: Runner (Image cuối cùng)
+# Dùng bản alpine sạch, không cần build tools nữa
+FROM oven/bun:1-alpine AS runner
 WORKDIR /app
+ENV NODE_ENV=production
 
-# Sao chép các file cần thiết từ giai đoạn builder:
-# 1. production node_modules (đã prune ở builder)
-# 2. Mã nguồn ứng dụng và kết quả build (giả định nằm trong /app sau bước build)
-# 3. package.json
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app .
+# Copy production dependencies
+COPY --from=prod-deps /app/node_modules ./node_modules
 
-# Cài đặt chính project này như một global package, theo yêu cầu của bạn
-# Bước này chạy trong giai đoạn runner sau khi đã có code và node_modules
-RUN npm install -g .
+# Copy mã nguồn đã biên dịch (compiled code) và tài nguyên tĩnh
+# Lưu ý: Project này build ra thư mục 'bin', views/public/locales không được build nên copy nguyên gốc
+COPY --from=builder /app/bin ./bin
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/views ./views
+COPY --from=builder /app/locales ./locales
+COPY --from=builder /app/package.json ./
 
-# Sao chép file cấu hình process.json từ build context (hoặc nó đã được copy ở bước trên)
-# Giả định process.json nằm ở thư mục gốc của project
-# Nếu bạn đã dùng 'COPY --from=builder /app .' và process.json nằm ở gốc project,
-# nó đã được copy rồi. Bỏ comment dòng dưới nếu process.json ở vị trí khác và cần copy riêng.
-# COPY ./process.json /app/process.json
+# Tạo symlink để lệnh 'code-push-server-db' trong docker-compose hoạt động
+# Thay vì npm install -g, ta link thủ công để tiết kiệm không gian
+RUN ln -s /app/bin/db.js /usr/local/bin/code-push-server-db
 
-# Mở cổng mặc định mà CodePush server sử dụng (thường là 3000)
+# Mở cổng
 EXPOSE 3000
 
-# Lệnh mặc định để khởi chạy ứng dụng bằng pm2-runtime
-CMD ["pm2-runtime", "/app/process.json"]
+# Chạy ứng dụng bằng Bun Runtime
+# Không dùng PM2 nữa vì Docker sẽ tự restart container nếu crash, và Bun quản lý mem tốt hơn
+CMD ["bun", "run", "bin/www.js"]

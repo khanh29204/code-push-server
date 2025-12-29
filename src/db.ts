@@ -1,173 +1,82 @@
 #!/usr/bin/env node
 /* eslint-disable no-console */
 
-/**
- * Module dependencies.
- */
-import fs from 'fs';
-import path from 'path';
-import _ from 'lodash';
-import mysql from 'mysql2';
-import yargs from 'yargs';
-import { CURRENT_DB_VERSION } from './core/const';
+import 'lodash';
+import { config } from './core/config';
+import { sequelize } from './core/utils/connections';
 
-const argv = yargs
-    .usage('Usage: $0 <command> [options]')
-    .command('init', 'Initialize database', {
-        dbpassword: {
-            alias: 'dbpassword',
-            type: 'string',
-        },
-    })
-    .command('upgrade', 'Upgrade database', {
-        dbpassword: {
-            alias: 'dbpassword',
-            type: 'string',
-        },
-    })
-    .example(
-        '$0 init --dbname codepush --dbhost localhost --dbuser root --dbpassword 123456 --dbport 3306 --force',
-        'Initialize code-push-server database',
-    )
-    .example(
-        '$0 upgrade --dbname codepush --dbhost localhost --dbuser root --dbpassword 123456 --dbport 3306',
-        'Upgrade code-push-server database',
-    )
-    .default({
-        dbname: 'codepush',
-        dbhost: 'localhost',
-        dbuser: 'root',
-        dbpassword: null,
-    })
-    .help('h')
-    .alias('h', 'help')
-    .parseSync();
+// Import tất cả các models để Sequelize nhận diện được schema
+import './models/apps';
+import './models/collaborators';
+import './models/deployments_history';
+import './models/deployments_versions';
+import './models/deployments';
+import './models/log_report_deploy';
+import './models/log_report_download';
+import './models/packages_diff';
+import './models/packages_metrics';
+import './models/packages';
+import './models/user_tokens';
+import { passwordHashSync, randToken } from './core/utils/security';
+import { Users } from './models/users';
+import { Versions } from './models/versions';
 
-const command = argv._[0];
-const dbname = argv.dbname ? argv.dbname : 'codepush';
-const dbhost = argv.dbhost ? argv.dbhost : 'localhost';
-const dbuser = argv.dbuser ? argv.dbuser : 'root';
-const dbport = argv.dbport ? argv.dbport : 3306;
-const { dbpassword } = argv;
-console.log('dbpassword >> ',dbpassword);
-
-if (command === 'init') {
-    let connection2;
-    const connection = mysql
-        .createConnection({
-            host: dbhost,
-            user: dbuser,
-            password: dbpassword,
-            port: dbport,
-        })
-        .promise();
-    const createDatabaseSql = argv.force
-        ? `CREATE DATABASE IF NOT EXISTS ${dbname}`
-        : `CREATE DATABASE ${dbname}`;
-    connection.connect();
-    connection
-        .query(createDatabaseSql)
-        .then(() => {
-            connection2 = mysql
-                .createConnection({
-                    host: dbhost,
-                    user: dbuser,
-                    password: dbpassword,
-                    database: dbname,
-                    multipleStatements: true,
-                    port: dbport,
-                })
-                .promise();
-            connection2.connect();
-            return connection2;
-        })
-        .then(() => {
-            const sql = fs.readFileSync(
-                path.resolve(__dirname, '../sql/codepush-all.sql'),
-                'utf-8',
-            );
-            return connection2.query(sql);
-        })
-        .then(() => {
-            console.log('success.');
-        })
-        .catch((e) => {
-            console.log(e);
-        })
-        .finally(() => {
-            if (connection) connection.end();
-            if (connection2) connection2.end();
-        });
-} else if (command === 'upgrade') {
-    let connection;
-    try {
-        connection = mysql
-            .createConnection({
-                host: dbhost,
-                user: dbuser,
-                password: dbpassword,
-                database: dbname,
-                multipleStatements: true,
-                port: dbport,
-            })
-            .promise();
-        connection.connect();
-    } catch (e) {
-        console.error('connect mysql error, check params', e);
-        process.exit(1);
+// Hàm khởi tạo DB
+const init = async () => {
+    console.log(`Initializing database with dialect: ${config.db.dialect}`);
+    if (config.db.dialect === 'sqlite') {
+        console.log(`Storage file: ${config.db.storage}`);
     }
 
-    let versionNo = '0.0.1';
-    connection
-        .query('select `version` from `versions` where `type`=1 limit 1')
-        .then((rs) => {
-            versionNo = _.get(rs, '0.version', '0.0.1');
-            if (versionNo === CURRENT_DB_VERSION) {
-                console.log('Everything up-to-date.');
-                process.exit(0);
-            }
-            const allSqlFile = [
-                {
-                    version: '0.2.14',
-                    path: path.resolve(__dirname, '../sql/codepush-v0.2.14-patch.sql'),
-                },
-                {
-                    version: '0.2.15',
-                    path: path.resolve(__dirname, '../sql/codepush-v0.2.15-patch.sql'),
-                },
-                {
-                    version: '0.3.0',
-                    path: path.resolve(__dirname, '../sql/codepush-v0.3.0-patch.sql'),
-                },
-                {
-                    version: '0.4.0',
-                    path: path.resolve(__dirname, '../sql/codepush-v0.4.0-patch.sql'),
-                },
-                {
-                    version: '0.5.0',
-                    path: path.resolve(__dirname, '../sql/codepush-v0.5.0-patch.sql'),
-                },
-            ];
-            return allSqlFile.reduce((prev, sqlFile) => {
-                if (!_.gt(sqlFile.version, versionNo)) {
-                    return prev;
-                }
-                const sql = fs.readFileSync(sqlFile.path, 'utf-8');
-                console.log(`exec sql file:${sqlFile.path}`);
-                return connection.query(sql).then(() => {
-                    console.log(`success exec sql file:${sqlFile.path}`);
-                });
-            }, Promise.resolve());
-        })
-        .then(() => {
-            console.log('Upgrade success.');
-        })
-        .catch((e) => {
-            console.error(e);
-        })
-        .finally(() => {
-            if (connection) connection.end();
+    try {
+        await sequelize.authenticate();
+        console.log('Connection has been established successfully.');
+
+        // 1. Tạo bảng (Sync Schema)
+        await sequelize.sync({ alter: true });
+        console.log('Database synchronized successfully.');
+
+        // 2. Khởi tạo Version DB
+        const [, createdVer] = await Versions.findOrCreate({
+            where: { type: 1 },
+            defaults: { version: '0.5.0' },
         });
-} else {
-    yargs.showHelp();
-}
+
+        if (createdVer) {
+            console.log('Initialized DB Version to 0.5.0');
+        }
+
+        // 3. Khởi tạo tài khoản Admin mặc định (Thay thế cho sql/codepush-all.sql)
+        // Kiểm tra xem đã có user nào chưa, hoặc kiểm tra user admin cụ thể
+        const adminExists = await Users.findOne({ where: { username: 'admin' } });
+
+        if (!adminExists) {
+            console.log('Creating default admin account...');
+            await Users.create({
+                username: 'admin',
+                // Mã hóa mật khẩu '123456'
+                password: passwordHashSync('123456'),
+                email: 'admin@codepush.com',
+                identical: randToken(9),
+                ack_code: randToken(5),
+                created_at: new Date(),
+                updated_at: new Date(),
+            });
+            console.log('-------------------------------------------------------');
+            console.log('  Admin account created successfully!');
+            console.log('  Username: admin');
+            console.log('  Password: 123456');
+            console.log('-------------------------------------------------------');
+        } else {
+            console.log('Admin account already exists. Skipping creation.');
+        }
+
+        console.log('SUCCESS: Database is ready.');
+        process.exit(0);
+    } catch (error) {
+        console.error('Unable to connect to the database:', error);
+        process.exit(1);
+    }
+};
+
+init();

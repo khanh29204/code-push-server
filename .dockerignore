@@ -32,3 +32,6 @@ temp
 # Process config (sẽ được copy riêng)
 # process.json # Chỉ bỏ comment dòng này nếu bạn không muốn nó bị copy bởi 'COPY --from=builder /app .',
              # nhưng thường copy chung là ok vì nó nằm trong /app
+data
+data-redis
+bin

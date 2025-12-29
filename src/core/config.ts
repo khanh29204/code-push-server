@@ -1,4 +1,5 @@
 import os from 'os';
+import path from 'path';
 import {
     setLogTransports,
     ConsoleLogTransport,
@@ -34,8 +35,11 @@ export const config = {
         database: process.env.RDS_DATABASE || 'codepush',
         host: process.env.RDS_HOST || '127.0.0.1',
         port: toNumber(process.env.RDS_PORT, 3306),
-        dialect: 'mysql',
+        dialect: (process.env.DB_DIALECT || 'sqlite') as 'mysql' | 'sqlite' | 'postgres',
         logging: false,
+        storage:
+            process.env.DB_STORAGE_FILE ||
+            path.join(process.env.DATA_DIR || os.tmpdir(), 'codepush.sqlite'),
     },
     // Config for qiniu (http://www.qiniu.com/) cloud storage when storageType value is "qiniu".
     qiniu: {

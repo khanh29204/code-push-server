@@ -1,42 +1,22 @@
 version: '3.7'
 services:
   server:
-    image: quockhanh2924/code-push-server:latest
+    image: ghcr.io/khanh29204/code-push-server:latest
     volumes:
-      - data-storage:/data/storage
-      - data-tmp:/data/tmp
-    environment:
-      DOWNLOAD_URL: 'http://127.0.0.1:3000/download'
-      TOKEN_SECRET: 'YOUR_JWT_TOKEN_SECRET'
-      RDS_HOST: 'mysql'
-      RDS_USERNAME: 'codepush'
-      RDS_PASSWORD: '123456'
-      RDS_DATABASE: 'codepush'
-      STORAGE_DIR: '/data/storage'
-      DATA_DIR: '/data/tmp'
-      NODE_ENV: 'development'
-      REDIS_HOST: 'redis'
-      LOG_LEVEL: 'debug'
+      - ./data:/data
+    env_file:
+      - .env
     ports:
       - '3000:3000'
     depends_on:
-      - mysql
       - redis
-  mysql:
-    image: mysql:latest
-    volumes:
-      - data-mysql:/var/lib/mysql
-      - ./sql/codepush-all-docker.sql:/docker-entrypoint-initdb.d/codepush-all.sql
-    environment:
-      MYSQL_ALLOW_EMPTY_PASSWORD: 'On'
-    ports:
-      - '3306:3306'
+    # Lệnh chạy khởi tạo DB trước khi start server
+    command: sh -c "bun bin/db.js init && bun bin/www.js"
+
+
+  # MySQL service đã bị xóa
+
   redis:
     image: redis:latest
     volumes:
-      - data-redis:/data
-volumes:
-  data-storage:
-  data-tmp:
-  data-mysql:
-  data-redis:
+      - ./data-redis:/data
