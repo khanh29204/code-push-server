@@ -4,7 +4,6 @@ All notable changes to this project will be documented in this file. See [standa
 
 ### [2.1.6](https://github.com/shm-open/code-push-server/compare/v2.1.5...v2.1.6) (2022-07-17)
 
-
 ### Bug Fixes
 
 * **deps:** update dependency aws-sdk to v2.1176.0 ([eb3c14a](https://github.com/shm-open/code-push-server/commit/eb3c14abcc8b673f485088f1b8684504a34b60ac))
