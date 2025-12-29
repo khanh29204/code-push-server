@@ -110,6 +110,45 @@ class DataCenterManager {
             });
         });
     }
+
+    // xóa package
+    deletePackageTmp(packageHash: string, logger: Logger) {
+        const dataDir = this.getDataDir();
+        const packageHashPath = path.join(dataDir, packageHash);
+        // xóa trong storage và tmp
+        // Check if the package directory exists before attempting to delete
+        if (fs.existsSync(packageHashPath)) {
+            try {
+                fs.rmSync(packageHashPath, { recursive: true, force: true });
+                logger.debug(`Successfully deleted package directory: ${packageHashPath}`);
+                return true;
+            } catch (error) {
+                logger.error(`Failed to delete package directory ${packageHashPath}: ${error}`);
+                return false;
+            }
+        }
+        logger.debug(`Package directory not found: ${packageHashPath}`);
+        return false;
+    }
+
+    deletePackageStorage(packageHash: string, logger: Logger) {
+        const dataDir = this.getDataDir();
+        const packageHashPath = path.join(dataDir, packageHash);
+        // xóa trong storage và tmp
+        // Check if the package directory exists before attempting to delete
+        if (fs.existsSync(packageHashPath)) {
+            try {
+                fs.rmSync(packageHashPath, { recursive: true, force: true });
+                logger.debug(`Successfully deleted package directory: ${packageHashPath}`);
+                return true;
+            } catch (error) {
+                logger.error(`Failed to delete package directory ${packageHashPath}: ${error}`);
+                return false;
+            }
+        }
+        logger.debug(`Package directory not found: ${packageHashPath}`);
+        return false;
+    }
 }
 
 export const dataCenterManager = new DataCenterManager();

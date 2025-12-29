@@ -1264,3 +1264,59 @@ appsRouter.post(
             });
     },
 );
+
+// xóa package theo label
+appsRouter.delete(
+    '/:appName/deployments/:deploymentName/releases/:label',
+    checkToken,
+    (req: Req<{ appName: string; deploymentName: string; label: string }>, res, next) => {
+        const { logger, params } = req;
+        const appName = _.trim(params.appName);
+        const deploymentName = _.trim(params.deploymentName);
+        const label = _.trim(params.label);
+        const uid = req.users.id;
+        logger.info('try to delete package by label', {
+            uid,
+            appName,
+            deploymentName,
+            label,
+        });
+        accountManager
+            .ownerCan(uid, appName, logger)
+            .then((col) => {
+                return deploymentsManager
+                    .findDeloymentByName(deploymentName, col.appid, logger)
+                    .then((deploymentInfo) => {
+                        if (_.isEmpty(deploymentInfo)) {
+                            throw new AppError('does not find the deployment');
+                        }
+                        return packageManager.deletePackageByLabel(deploymentInfo.id, label);
+                    });
+            })
+            .then(() => {
+                logger.info('delete package by label success', {
+                    uid,
+                    appName,
+                    deploymentName,
+                    label,
+                });
+
+                res.send('ok');
+            })
+            .catch((e) => {
+                if (e instanceof AppError) {
+                    logger.info('delete package by label failed', {
+                        uid,
+                        appName,
+                        deploymentName,
+                        label,
+                        error: e.message,
+                    });
+
+                    res.status(406).send(e.message);
+                } else {
+                    next(e);
+                }
+            });
+    },
+);

@@ -14,8 +14,9 @@ services:
       RDS_DATABASE: 'codepush'
       STORAGE_DIR: '/data/storage'
       DATA_DIR: '/data/tmp'
-      NODE_ENV: 'production'
+      NODE_ENV: 'development'
       REDIS_HOST: 'redis'
+      LOG_LEVEL: 'debug'
     ports:
       - '3000:3000'
     depends_on:

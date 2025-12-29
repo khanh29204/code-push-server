@@ -61,10 +61,6 @@ RUN npm install -g .
 # nó đã được copy rồi. Bỏ comment dòng dưới nếu process.json ở vị trí khác và cần copy riêng.
 # COPY ./process.json /app/process.json
 
-
-# Thiết lập biến môi trường cho production
-ENV NODE_ENV=production
-
 # Mở cổng mặc định mà CodePush server sử dụng (thường là 3000)
 EXPOSE 3000
 

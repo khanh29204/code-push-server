@@ -122,7 +122,9 @@ class AccountManager {
                     const loginKey = `${LOGIN_LIMIT_PRE}${users.id}`;
                     return redisClient.get(loginKey).then((loginErrorTimes) => {
                         if (Number(loginErrorTimes) > tryLoginTimes) {
-                            throw new AppError('The number of times you entered the wrong password exceeds the limit, and the account is locked');
+                            throw new AppError(
+                                'The number of times you entered the wrong password exceeds the limit, and the account is locked',
+                            );
                         }
                         return users;
                     });
@@ -156,7 +158,9 @@ class AccountManager {
         return Users.findOne({ where: { email } })
             .then((u) => {
                 if (u) {
-                    throw new AppError(`"${email}" has already been registered, please use another email address to register`);
+                    throw new AppError(
+                        `"${email}" has already been registered, please use another email address to register`,
+                    );
                 }
             })
             .then(() => {
@@ -176,14 +180,18 @@ class AccountManager {
         return Users.findOne({ where: { email } })
             .then((u) => {
                 if (u) {
-                    throw new AppError(`"${email}" has already been registered, please use another email address to register`);
+                    throw new AppError(
+                        `"${email}" has already been registered, please use another email address to register`,
+                    );
                 }
             })
             .then(() => {
                 const registerKey = `${REGISTER_CODE}${md5(email)}`;
                 return redisClient.get(registerKey).then((storageToken) => {
                     if (_.isEmpty(storageToken)) {
-                        throw new AppError('The verification code has expired, please get it again');
+                        throw new AppError(
+                            'The verification code has expired, please get it again',
+                        );
                     }
                     if (!_.eq(token, storageToken)) {
                         redisClient.ttl(registerKey).then((ttl) => {
@@ -191,7 +199,9 @@ class AccountManager {
                                 redisClient.expire(registerKey, ttl - EXPIRED_SPEED);
                             }
                         });
-                        throw new AppError('The verification code you entered is incorrect, please re-enter it');
+                        throw new AppError(
+                            'The verification code you entered is incorrect, please re-enter it',
+                        );
                     }
                     return storageToken;
                 });
@@ -202,7 +212,9 @@ class AccountManager {
         return Users.findOne({ where: { email } })
             .then((u) => {
                 if (u) {
-                    throw new AppError(`"${email}" has already been registered, please use another email address to register`);
+                    throw new AppError(
+                        `"${email}" has already been registered, please use another email address to register`,
+                    );
                 }
             })
             .then(() => {
@@ -217,7 +229,9 @@ class AccountManager {
 
     changePassword(uid: number, oldPassword: string, newPassword: string) {
         if (!_.isString(newPassword) || newPassword.length < 6) {
-            return Promise.reject(new AppError('Please enter a new password between 6 and 20 characters long'));
+            return Promise.reject(
+                new AppError('Please enter a new password between 6 and 20 characters long'),
+            );
         }
         return Users.findOne({ where: { id: uid } })
             .then((u) => {
@@ -229,7 +243,9 @@ class AccountManager {
             .then((u) => {
                 const isEq = passwordVerifySync(oldPassword, u.get('password'));
                 if (!isEq) {
-                    throw new AppError('The old password you entered is incorrect, please re-enter it');
+                    throw new AppError(
+                        'The old password you entered is incorrect, please re-enter it',
+                    );
                 }
                 u.set('password', passwordHashSync(newPassword));
                 u.set('ack_code', randToken(5));

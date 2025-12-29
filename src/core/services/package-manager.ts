@@ -17,7 +17,7 @@ import { DeploymentsVersions } from '../../models/deployments_versions';
 import { Packages, PackagesInterface } from '../../models/packages';
 import { PackagesDiff } from '../../models/packages_diff';
 import { PackagesMetrics } from '../../models/packages_metrics';
-import { AppError } from '../app-error';
+import { AppError, NotFound } from '../app-error';
 import {
     DIFF_MANIFEST_FILE_NAME,
     IS_DISABLED_NO,
@@ -353,7 +353,7 @@ class PackageManager {
 
     createDiffPackages(originalPackage, destPackages, logger: Logger) {
         if (!_.isArray(destPackages)) {
-            return Promise.reject(new AppError('第二个参数必须是数组'));
+            return Promise.reject(new AppError('destPackages is not an array'));
         }
         if (destPackages.length <= 0) {
             return null;
@@ -706,7 +706,7 @@ class PackageManager {
     ) {
         return DeploymentsVersions.findByPk(deploymentVersionId).then((deploymentsVersions) => {
             if (!deploymentsVersions) {
-                throw new AppError('您之前还没有发布过版本');
+                throw new AppError('does not find the deploymentsVersions');
             }
             return Packages.findByPk(deploymentsVersions.current_package_id)
                 .then((currentPackageInfo): Promise<[PackagesInterface, PackagesInterface[]]> => {
@@ -738,7 +738,7 @@ class PackageManager {
                             }
                         }
                     }
-                    throw new AppError('没有可供回滚的版本');
+                    throw new AppError('no package can be rolled back.');
                 })
                 .then((rollbackPackage) => {
                     const params = {
@@ -778,6 +778,41 @@ class PackageManager {
             order: [['id', 'desc']],
             limit: 2,
         });
+    }
+
+    // xóa file trong storage theo label để giảm dung lượng (không xóa trong database, vẫn hiện như cũ)
+    deletePackageByLabel(deploymentId: number, label: string) {
+        return Packages.findOne({ where: { deployment_id: deploymentId, label } }).then(
+            (packageInfo) => {
+                if (!packageInfo) {
+                    throw new NotFound('Package not found.');
+                }
+                // Here you would typically interact with your storage solution
+                // to delete the actual package files (blob_url and manifest_blob_url).
+                // For example, if using a cloud storage service, you'd call its SDK.
+                // Since the current implementation uses `qetag` and `uploadFileToStorage`
+                // which might imply a local file system or a simple key-value store,
+                // we'll simulate deletion by removing from dataCenterManager if it exists.
+
+                // Note: This is a simplified example. A real-world scenario would
+                // involve a more robust storage management system.
+
+                // Attempt to delete from dataCenterManager if it's stored there
+                // This assumes dataCenterManager.deletePackage can handle the packageHash
+                // and that the blob_url and manifest_blob_url correspond to files
+                // managed by dataCenterManager.
+                dataCenterManager.deletePackageTmp(packageInfo.package_hash, new Logger()); // Assuming a logger is available or can be instantiated
+                dataCenterManager.deletePackageStorage(packageInfo.manifest_blob_url, new Logger());
+                return true;
+                // You might also want to delete the manifest_blob_url file if it's separate
+                // and managed similarly.
+
+                // Optionally, you could mark the package as deleted in the database
+                // or remove it entirely, depending on business requirements.
+                // For now, we're just "deleting" the physical files.
+                // return true;
+            },
+        );
     }
 }
 

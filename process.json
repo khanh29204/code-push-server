@@ -5,10 +5,7 @@
       "max_memory_restart": "500M",
       "script": "code-push-server",
       "instances": "max",
-      "exec_mode": "cluster",
-      "env": {
-        "NODE_ENV": "production"
-      }
+      "exec_mode": "cluster"
     }
   ]
 }
