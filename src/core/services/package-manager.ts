@@ -188,7 +188,16 @@ class PackageManager {
                                 { last_deployment_version_id: deploymentsVersions.id },
                                 { where: { id: deploymentId }, transaction: t },
                             ),
-                            PackagesMetrics.create({ package_id: packages.id }, { transaction: t }),
+                            PackagesMetrics.create(
+                                {
+                                    package_id: packages.id,
+                                    active: 0,
+                                    downloaded: 0,
+                                    failed: 0,
+                                    installed: 0,
+                                },
+                                { transaction: t },
+                            ),
                             DeploymentsHistory.create(
                                 { deployment_id: deploymentId, package_id: packages.id },
                                 { transaction: t },

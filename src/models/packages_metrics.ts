@@ -21,11 +21,22 @@ export const PackagesMetrics = sequelize.define<PackagesMetricsInterface>(
             autoIncrement: true,
             primaryKey: true,
         },
-        package_id: DataTypes.INTEGER({ length: 10 }),
-        active: DataTypes.INTEGER({ length: 10 }),
-        downloaded: DataTypes.INTEGER({ length: 10 }),
-        failed: DataTypes.INTEGER({ length: 10 }),
-        installed: DataTypes.INTEGER({ length: 10 }),
+        active: {
+            type: DataTypes.INTEGER({ length: 10 }),
+            defaultValue: 0,
+        },
+        downloaded: {
+            type: DataTypes.INTEGER({ length: 10 }),
+            defaultValue: 0,
+        },
+        failed: {
+            type: DataTypes.INTEGER({ length: 10 }),
+            defaultValue: 0,
+        },
+        installed: {
+            type: DataTypes.INTEGER({ length: 10 }),
+            defaultValue: 0,
+        },
         created_at: DataTypes.DATE,
         updated_at: DataTypes.DATE,
     },
