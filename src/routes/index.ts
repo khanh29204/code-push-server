@@ -1,3 +1,4 @@
+import fs from 'fs';
 import path from 'path';
 import express from 'express';
 import { AppError } from '../core/app-error';
@@ -150,61 +151,77 @@ indexRouter.get('/authenticated', checkToken, (req, res) => {
     return res.send({ authenticated: true });
 });
 
+const scanFilesRecursively = (
+    dir: string,
+    fileList: { name: string; size: number; path: string; modified: number }[] = [],
+) => {
+    try {
+        const files = fs.readdirSync(dir);
+        files.forEach((file) => {
+            // Bỏ qua file ẩn hệ thống .DS_Store, .gitkeep...
+            if (file.startsWith('.')) return;
+
+            const fullPath = path.join(dir, file);
+            const stat = fs.statSync(fullPath);
+
+            if (stat.isDirectory()) {
+                // Nếu là thư mục, đệ quy quét tiếp bên trong
+                scanFilesRecursively(fullPath, fileList);
+            } else {
+                // Nếu là file, thêm vào danh sách
+                fileList.push({
+                    name: path.basename(file), // Lấy tên file làm Hash (CodePush lưu hash là tên file)
+                    size: stat.size,
+                    path: fullPath,
+                    modified: stat.mtimeMs,
+                });
+            }
+        });
+    } catch (e) {
+        // Bỏ qua lỗi nếu không đọc được thư mục con nào đó
+        // eslint-disable-next-line no-console
+        console.error(`Error scanning dir ${dir}:`, e);
+    }
+    return fileList;
+};
+
 // eslint-disable-next-line max-lines-per-function
 indexRouter.get('/storage/audit', checkToken, async (req, res, next) => {
     const { logger } = req as Req;
 
     if (config.common.storageType !== 'local') {
-        next(new AppError('This API is only available when storageType is "local".'));
-        return;
+        next(new AppError(`Audit API not supported for storageType: ${config.common.storageType}`));
     }
 
     const { storageDir } = config.local;
 
     try {
-        logger.info(`[Audit] Starting storage audit (Bun Native) in: ${storageDir}`);
+        logger.info(`[Audit] Scanning directory (Recursive FS): ${storageDir}`);
 
-        // BUN NATIVE: Kiểm tra thư mục tồn tại
-        // Bun không có hàm existsSync trực tiếp cho Dir, dùng fs hoặc check stat
-        // Nhưng để thuần Bun, ta dùng Glob quét luôn, nếu lỗi nghĩa là ko có.
+        if (!fs.existsSync(storageDir)) {
+            throw new AppError(`Storage directory does not exist: ${storageDir}`);
+        }
 
-        // 2. Scan Disk bằng Bun.Glob (Nhanh hơn recursive-readdir nhiều)
-        const glob = new Bun.Glob('**/*');
+        // 1. Quét file từ ổ cứng (Dùng hàm thủ công mới viết)
+        const scannedFiles = scanFilesRecursively(storageDir);
 
-        // Chạy song song: Quét file & Query DB
-        const [scannedFiles, dbPackages] = await Promise.all([
-            // Scan disk trả về Async Iterator
-            (async () => {
-                const files = await Promise.all(
-                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-                    // @ts-ignore
-                    Array.from(glob.scan({ cwd: storageDir, onlyFiles: true }))
-                        .filter((fileName: string) => !fileName.startsWith('.')) // Bỏ qua file ẩn
-                        .map(async (fileName: string) => {
-                            const fullPath = path.join(storageDir, fileName);
-                            const file = Bun.file(fullPath);
-                            return {
-                                name: path.basename(fileName), // Hash
-                                size: file.size,
-                                path: fullPath,
-                                modified: file.lastModified,
-                            };
-                        }),
-                );
-                return files;
-            })(),
-            Packages.findAll({
-                attributes: ['id', 'label', 'package_hash', 'blob_url', 'manifest_blob_url'],
-                raw: true,
-            }),
-        ]);
+        logger.info(`[Audit] Found ${scannedFiles.length} files on disk.`);
 
-        // 3. Process Logic (Giống phiên bản trước nhưng dùng dữ liệu từ Bun)
+        // 2. Lấy dữ liệu từ DB
+        const dbPackages = await Packages.findAll({
+            attributes: ['id', 'label', 'package_hash', 'blob_url', 'manifest_blob_url'],
+            raw: true,
+        });
+
+        logger.info(`[Audit] Found ${dbPackages.length} packages in DB.`);
+
+        // 3. Xử lý dữ liệu Disk để so sánh
         const diskFileMap = new Map();
         let totalSizeBytes = 0;
 
         scannedFiles.forEach((file) => {
             totalSizeBytes += file.size;
+            // Key là tên file (hash) để tra cứu cho nhanh
             diskFileMap.set(file.name, {
                 hash: file.name,
                 size: file.size,
@@ -213,7 +230,6 @@ indexRouter.get('/storage/audit', checkToken, async (req, res, next) => {
             });
         });
 
-        // 4. Compare (Logic so sánh giữ nguyên)
         const report = {
             summary: {
                 totalFilesOnDisk: diskFileMap.size,
@@ -221,35 +237,56 @@ indexRouter.get('/storage/audit', checkToken, async (req, res, next) => {
                 totalPackagesInDb: dbPackages.length,
                 orphanedFilesCount: 0,
                 missingFilesCount: 0,
+                scanPath: storageDir,
             },
-            orphanedFiles: [],
-            missingFiles: [],
+            orphanedFiles: [] as unknown[],
+            missingFiles: [] as unknown[],
+            validFiles: 0,
         };
 
         const validHashes = new Set<string>();
 
+        // 4. So khớp DB -> Disk
         dbPackages.forEach((pkg) => {
-            const check = (hash: string, type: string) => {
+            const checkFile = (hash: string, type: 'blob' | 'manifest') => {
                 if (!hash) return;
+
                 validHashes.add(hash);
-                if (!diskFileMap.has(hash)) {
+
+                if (diskFileMap.has(hash)) {
+                    report.validFiles += 1;
+                } else {
                     report.missingFiles.push({
                         packageId: pkg.id,
                         label: pkg.label,
                         type,
                         hash,
+                        // Thêm hint đường dẫn file lẽ ra phải nằm ở đâu để dễ debug
+                        expectedPath: path.join(
+                            storageDir,
+                            hash.substring(0, 2).toLowerCase(),
+                            hash,
+                        ),
                     });
                 }
             };
-            check(pkg.blob_url, 'blob');
-            check(pkg.manifest_blob_url, 'manifest');
+
+            checkFile(pkg.blob_url, 'blob');
+            checkFile(pkg.manifest_blob_url, 'manifest');
         });
 
         report.summary.missingFilesCount = report.missingFiles.length;
 
+        // 5. So khớp Disk -> DB (Tìm file rác)
         diskFileMap.forEach((info, hash) => {
             if (!validHashes.has(hash)) {
-                report.orphanedFiles.push(info);
+                report.orphanedFiles.push({
+                    hash,
+                    size: info.size,
+                    path: info.fullPath,
+                    // Convert timestamp sang string dễ đọc
+                    modified: new Date(info.modifiedTime).toISOString(),
+                });
             }
         });
 
