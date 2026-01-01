@@ -191,21 +191,18 @@ indexRouter.get('/storage/audit', checkToken, async (req, res, next) => {
 
     if (config.common.storageType !== 'local') {
         next(new AppError(`Audit API not supported for storageType: ${config.common.storageType}`));
+        return;
     }
 
     const { storageDir } = config.local;
 
     try {
-        logger.info(`[Audit] Scanning directory (Recursive FS): ${storageDir}`);
-
         if (!fs.existsSync(storageDir)) {
             throw new AppError(`Storage directory does not exist: ${storageDir}`);
         }
 
-        // 1. Quét file từ ổ cứng (Dùng hàm thủ công mới viết)
+        // 1. Quét file từ ổ cứng
         const scannedFiles = scanFilesRecursively(storageDir);
-
-        logger.info(`[Audit] Found ${scannedFiles.length} files on disk.`);
 
         // 2. Lấy dữ liệu từ DB
         const dbPackages = await Packages.findAll({
@@ -213,15 +210,12 @@ indexRouter.get('/storage/audit', checkToken, async (req, res, next) => {
             raw: true,
         });
 
-        logger.info(`[Audit] Found ${dbPackages.length} packages in DB.`);
-
-        // 3. Xử lý dữ liệu Disk để so sánh
+        // 3. Map dữ liệu ổ cứng
         const diskFileMap = new Map();
         let totalSizeBytes = 0;
 
         scannedFiles.forEach((file) => {
             totalSizeBytes += file.size;
-            // Key là tên file (hash) để tra cứu cho nhanh
             diskFileMap.set(file.name, {
                 hash: file.name,
                 size: file.size,
@@ -230,6 +224,7 @@ indexRouter.get('/storage/audit', checkToken, async (req, res, next) => {
             });
         });
 
+        // Cấu trúc báo cáo mới
         const report = {
             summary: {
                 totalFilesOnDisk: diskFileMap.size,
@@ -237,11 +232,21 @@ indexRouter.get('/storage/audit', checkToken, async (req, res, next) => {
                 totalPackagesInDb: dbPackages.length,
                 orphanedFilesCount: 0,
                 missingFilesCount: 0,
-                scanPath: storageDir,
+                validFilesCount: 0,
             },
-            orphanedFiles: [] as unknown[],
+            // Danh sách file thiếu (DB có, Disk không) -> Cần fix
             missingFiles: [] as unknown[],
-            validFiles: 0,
+            // Danh sách file thừa (Disk có, DB không) -> Cần xóa
+            orphanedFiles: [] as unknown[],
+            // [MỚI] Danh sách file hợp lệ kèm Package ID để tra cứu
+            validFiles: [] as {
+                packageId: number;
+                label: string;
+                type: 'blob' | 'manifest';
+                hash: string;
+                size: string;
+                path: string;
+            }[],
         };
 
         const validHashes = new Set<string>();
@@ -254,14 +259,23 @@ indexRouter.get('/storage/audit', checkToken, async (req, res, next) => {
                 validHashes.add(hash);
 
                 if (diskFileMap.has(hash)) {
-                    report.validFiles += 1;
+                    // File tồn tại -> Thêm vào danh sách Valid kèm ID
+                    const fileInfo = diskFileMap.get(hash);
+                    report.validFiles.push({
+                        packageId: pkg.id, // <--- ID bạn cần đây
+                        label: pkg.label, // v1, v2...
+                        type, // blob (file zip) hay manifest
+                        hash,
+                        size: `${(fileInfo.size / 1024 / 1024).toFixed(2)} MB`,
+                        path: fileInfo.fullPath,
+                    });
                 } else {
+                    // File thiếu
                     report.missingFiles.push({
                         packageId: pkg.id,
                         label: pkg.label,
                         type,
                         hash,
-                        // Thêm hint đường dẫn file lẽ ra phải nằm ở đâu để dễ debug
                         expectedPath: path.join(
                             storageDir,
                             hash.substring(0, 2).toLowerCase(),
@@ -275,22 +289,25 @@ indexRouter.get('/storage/audit', checkToken, async (req, res, next) => {
             checkFile(pkg.manifest_blob_url, 'manifest');
         });
 
-        report.summary.missingFilesCount = report.missingFiles.length;
-
         // 5. So khớp Disk -> DB (Tìm file rác)
         diskFileMap.forEach((info, hash) => {
             if (!validHashes.has(hash)) {
                 report.orphanedFiles.push({
                     hash,
-                    size: info.size,
+                    size: `${(info.size / 1024 / 1024).toFixed(2)} MB`,
                     path: info.fullPath,
-                    // Convert timestamp sang string dễ đọc
                     modified: new Date(info.modifiedTime).toISOString(),
                 });
             }
         });
 
+        // Cập nhật số liệu tổng kết
+        report.summary.validFilesCount = report.validFiles.length;
+        report.summary.missingFilesCount = report.missingFiles.length;
         report.summary.orphanedFilesCount = report.orphanedFiles.length;
+
+        // Sắp xếp lại danh sách valid theo Package ID giảm dần (mới nhất lên đầu) để dễ nhìn
+        report.validFiles.sort((a, b) => b.packageId - a.packageId);
 
         res.send(report);
     } catch (e) {
