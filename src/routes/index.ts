@@ -1,8 +1,11 @@
+import path from 'path';
 import express from 'express';
 import { AppError } from '../core/app-error';
+import { config } from '../core/config';
 import { i18n } from '../core/i18n';
 import { checkToken, Req } from '../core/middleware';
 import { clientManager } from '../core/services/client-manager';
+import { Packages } from '../models/packages';
 
 export const indexRouter = express.Router();
 
@@ -145,4 +148,116 @@ indexRouter.post(
 
 indexRouter.get('/authenticated', checkToken, (req, res) => {
     return res.send({ authenticated: true });
+});
+
+// eslint-disable-next-line max-lines-per-function
+indexRouter.get('/storage/audit', checkToken, async (req, res, next) => {
+    const { logger } = req as Req;
+
+    if (config.common.storageType !== 'local') {
+        next(new AppError('This API is only available when storageType is "local".'));
+        return;
+    }
+
+    const { storageDir } = config.local;
+
+    try {
+        logger.info(`[Audit] Starting storage audit (Bun Native) in: ${storageDir}`);
+
+        // BUN NATIVE: Kiểm tra thư mục tồn tại
+        // Bun không có hàm existsSync trực tiếp cho Dir, dùng fs hoặc check stat
+        // Nhưng để thuần Bun, ta dùng Glob quét luôn, nếu lỗi nghĩa là ko có.
+
+        // 2. Scan Disk bằng Bun.Glob (Nhanh hơn recursive-readdir nhiều)
+        const glob = new Bun.Glob('**/*');
+
+        // Chạy song song: Quét file & Query DB
+        const [scannedFiles, dbPackages] = await Promise.all([
+            // Scan disk trả về Async Iterator
+            (async () => {
+                const files = await Promise.all(
+                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // @ts-ignore
+                    Array.from(glob.scan({ cwd: storageDir, onlyFiles: true }))
+                        .filter((fileName: string) => !fileName.startsWith('.')) // Bỏ qua file ẩn
+                        .map(async (fileName: string) => {
+                            const fullPath = path.join(storageDir, fileName);
+                            const file = Bun.file(fullPath);
+                            return {
+                                name: path.basename(fileName), // Hash
+                                size: file.size,
+                                path: fullPath,
+                                modified: file.lastModified,
+                            };
+                        }),
+                );
+                return files;
+            })(),
+            Packages.findAll({
+                attributes: ['id', 'label', 'package_hash', 'blob_url', 'manifest_blob_url'],
+                raw: true,
+            }),
+        ]);
+
+        // 3. Process Logic (Giống phiên bản trước nhưng dùng dữ liệu từ Bun)
+        const diskFileMap = new Map();
+        let totalSizeBytes = 0;
+
+        scannedFiles.forEach((file) => {
+            totalSizeBytes += file.size;
+            diskFileMap.set(file.name, {
+                hash: file.name,
+                size: file.size,
+                fullPath: file.path,
+                modifiedTime: file.modified,
+            });
+        });
+
+        // 4. Compare (Logic so sánh giữ nguyên)
+        const report = {
+            summary: {
+                totalFilesOnDisk: diskFileMap.size,
+                totalSizeOnDisk: `${(totalSizeBytes / 1024 / 1024).toFixed(2)} MB`,
+                totalPackagesInDb: dbPackages.length,
+                orphanedFilesCount: 0,
+                missingFilesCount: 0,
+            },
+            orphanedFiles: [],
+            missingFiles: [],
+        };
+
+        const validHashes = new Set<string>();
+
+        dbPackages.forEach((pkg) => {
+            const check = (hash: string, type: string) => {
+                if (!hash) return;
+                validHashes.add(hash);
+                if (!diskFileMap.has(hash)) {
+                    report.missingFiles.push({
+                        packageId: pkg.id,
+                        label: pkg.label,
+                        type,
+                        hash,
+                    });
+                }
+            };
+            check(pkg.blob_url, 'blob');
+            check(pkg.manifest_blob_url, 'manifest');
+        });
+
+        report.summary.missingFilesCount = report.missingFiles.length;
+
+        diskFileMap.forEach((info, hash) => {
+            if (!validHashes.has(hash)) {
+                report.orphanedFiles.push(info);
+            }
+        });
+
+        report.summary.orphanedFilesCount = report.orphanedFiles.length;
+
+        res.send(report);
+    } catch (e) {
+        logger.error('[Audit] Error', e);
+        next(e);
+    }
 });

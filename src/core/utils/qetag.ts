@@ -50,6 +50,7 @@ function getEtag(buffer: string | Stream | Buffer, callback: (etag: string) => v
             blockCount = Math.ceil(bufferSize / blockSize);
 
             for (let i = 0; i < blockCount; i += 1) {
+                // eslint-disable-next-line deprecation/deprecation
                 sha1String.push(sha1(buf.slice(i * blockSize, (i + 1) * blockSize)));
             }
             process.nextTick(() => {
