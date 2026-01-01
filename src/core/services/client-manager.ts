@@ -237,7 +237,6 @@ class ClientManager {
                         return packages;
                     })
                     .then((packages) => {
-                        // 尝试增量更新
                         if (
                             packageHash &&
                             !_.isEmpty(packages) &&

@@ -45,7 +45,6 @@ indexV1Router.get(
                 logger,
             )
             .then((rs) => {
-                // 灰度检测
                 return clientManager
                     .chosenMan(rs.packageId, rs.rollout, clientUniqueId)
                     .then((data) => {

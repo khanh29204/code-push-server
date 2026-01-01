@@ -421,10 +421,10 @@ class PackageManager {
             logger.debug(`releasePackage targetBinaryVersion ${appVersion} not support.`);
             return Promise.reject(new AppError(`targetBinaryVersion ${appVersion} not support.`));
         }
-        const { description } = packageInfo; // 描述
-        const { isDisabled } = packageInfo; // 是否立刻下载
-        const { rollout } = packageInfo; // 灰度百分比
-        const { isMandatory } = packageInfo; // 是否强制更新，无法跳过
+        const { description } = packageInfo;
+        const { isDisabled } = packageInfo;
+        const { rollout } = packageInfo;
+        const { isMandatory } = packageInfo;
         const tmpDir = os.tmpdir();
         const directoryPathParent = path.join(tmpDir, `codepuh_${randToken(32)}`);
         const directoryPath = path.join(directoryPathParent, 'current');
@@ -443,7 +443,6 @@ class PackageManager {
                             logger.debug(e);
                             throw e;
                         } else {
-                            // 不验证
                             logger.debug(`Unknown package type:`, {
                                 type,
                                 os: appInfo.os,

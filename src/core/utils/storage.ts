@@ -186,10 +186,8 @@ function uploadFileToQiniu(key: string, filePath: string, logger: Logger): Promi
                 putExtra,
                 (resErr, resBody, resInfo) => {
                     if (resErr) {
-                        // 上传失败， 处理返回代码
                         return reject(new AppError(resErr));
                     }
-                    // 上传成功， 处理返回值
                     if (resInfo.statusCode === 200) {
                         logger.info('uploadFileToQiniu success', { key });
                         return resolve();

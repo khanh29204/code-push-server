@@ -21,6 +21,7 @@ export const PackagesMetrics = sequelize.define<PackagesMetricsInterface>(
             autoIncrement: true,
             primaryKey: true,
         },
+        package_id: DataTypes.INTEGER({ length: 10 }),
         active: {
             type: DataTypes.INTEGER({ length: 10 }),
             defaultValue: 0,

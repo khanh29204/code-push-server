@@ -5,9 +5,7 @@ import { Stream, Readable } from 'stream';
 import { Logger } from 'kv-logger';
 import { AppError } from '../app-error';
 
-// 计算文件的eTag，参数为buffer或者readableStream或者文件路径
 function getEtag(buffer: string | Stream | Buffer, callback: (etag: string) => void) {
-    // 判断传入的参数是buffer还是stream还是filepath
     let mode = 'buffer';
 
     if (typeof buffer === 'string') {
@@ -18,14 +16,12 @@ function getEtag(buffer: string | Stream | Buffer, callback: (etag: string) => v
         mode = 'stream';
     }
 
-    // sha1算法
     const sha1 = (content) => {
         const sha1Hash = crypto.createHash('sha1');
         sha1Hash.update(content);
         return sha1Hash.digest();
     };
 
-    // 以4M为单位分割
     const blockSize = 4 * 1024 * 1024;
     const sha1String = [];
     let prefix = 0x16;
@@ -37,7 +33,6 @@ function getEtag(buffer: string | Stream | Buffer, callback: (etag: string) => v
         }
         let sha1Buffer = Buffer.concat(sha1String, blockCount * 20);
 
-        // 如果大于4M，则对各个块的sha1结果再次sha1
         if (blockCount > 1) {
             prefix = 0x96;
             sha1Buffer = sha1(sha1Buffer);
