@@ -199,10 +199,15 @@ class DeploymentsManager {
     }
 
     getDeploymentHistory(deploymentId, limit) {
+        let limitNum = parseInt(limit, 10);
+        if (Number.isNaN(limitNum) || limitNum <= 0) {
+            limitNum = 15;
+        }
+
         return DeploymentsHistory.findAll({
             where: { deployment_id: deploymentId },
             order: [['id', 'desc']],
-            limit: parseInt(limit, 10) ?? 15,
+            limit: limitNum,
         })
             .then((history) => {
                 return _.map(history, (v) => {
