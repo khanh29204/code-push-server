@@ -146,7 +146,7 @@ class PackageManager {
         const releaseUid = params.releaseUid || 0;
         const isMandatory = params.isMandatory || 0;
         const size = params.size || 0;
-        const rollout = params.rollout || 100;
+        const rollout = _.isNil(params.rollout) ? 100 : params.rollout;
         const description = params.description || '';
         const originalLabel = params.originalLabel || '';
         const isDisabled = params.isDisabled || 0;

@@ -155,7 +155,9 @@ class DeploymentsManager {
             description: packageVersion.packageInfo.description,
             isDisabled: false,
             isMandatory: packageVersion.packageInfo.is_mandatory === 1,
-            rollout: 100,
+            rollout: _.isNil(packageVersion.packageInfo.rollout)
+                ? 100
+                : packageVersion.packageInfo.rollout,
             appVersion: packageVersion.deploymentsVersions.app_version,
             packageHash: packageVersion.packageInfo.package_hash,
             blobUrl: getBlobDownloadUrl(packageVersion.packageInfo.blob_url),
