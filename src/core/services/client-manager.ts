@@ -188,83 +188,141 @@ class ClientManager {
         if (_.isEmpty(deploymentKey) || _.isEmpty(appVersion)) {
             return Promise.reject(new AppError('please input deploymentKey and appVersion'));
         }
-        return Deployments.findOne({ where: { deployment_key: deploymentKey } })
-            .then((dep) => {
-                if (_.isEmpty(dep)) {
-                    throw new AppError('Not found deployment, check deployment key is right.');
-                }
-                const version = parseVersion(appVersion);
-                return DeploymentsVersions.findAll({
-                    where: {
-                        deployment_id: dep.id,
-                        min_version: { [Op.lte]: version },
-                        max_version: { [Op.gt]: version },
-                    },
-                }).then((deploymentsVersionsMore) => {
-                    const item = _.last(_.sortBy(deploymentsVersionsMore, 'created_at'));
-                    logger.debug({
-                        item,
+        return (
+            Deployments.findOne({ where: { deployment_key: deploymentKey } })
+                .then((dep) => {
+                    if (_.isEmpty(dep)) {
+                        throw new AppError('Not found deployment, check deployment key is right.');
+                    }
+                    const version = parseVersion(appVersion);
+                    return DeploymentsVersions.findAll({
+                        where: {
+                            deployment_id: dep.id,
+                            min_version: { [Op.lte]: version },
+                            max_version: { [Op.gt]: version },
+                        },
+                    }).then((deploymentsVersionsMore) => {
+                        const item = _.last(_.sortBy(deploymentsVersionsMore, 'created_at'));
+                        logger.debug({
+                            item,
+                        });
+                        return item;
                     });
-                    return item;
-                });
-            })
-            .then((deploymentsVersions) => {
-                const packageId = _.get(deploymentsVersions, 'current_package_id', 0);
-                if (_.eq(packageId, 0)) {
-                    return undefined;
-                }
-                return Packages.findByPk(packageId)
-                    .then((packages) => {
-                        if (
-                            packages &&
-                            _.eq(packages.deployment_id, deploymentsVersions.deployment_id) &&
-                            !_.eq(packages.package_hash, packageHash)
-                        ) {
-                            rs.packageId = packageId;
-                            rs.targetBinaryRange = deploymentsVersions.app_version;
-                            rs.downloadURL = getBlobDownloadUrl(packages.blob_url);
-                            rs.downloadUrl = rs.downloadURL;
-                            rs.description = _.get(packages, 'description', '');
-                            rs.isAvailable = !_.eq(packages.is_disabled, 1);
-                            rs.isDisabled = !!_.eq(packages.is_disabled, 1);
-                            rs.isMandatory = !!_.eq(packages.is_mandatory, 1);
-                            rs.appVersion = appVersion;
-                            rs.packageHash = _.get(packages, 'package_hash', '');
-                            rs.label = _.get(packages, 'label', '');
-                            rs.packageSize = _.get(packages, 'size', 0);
-                            rs.rollout = _.get(packages, 'rollout', 100);
-                        }
-                        return packages;
-                    })
-                    .then((packages) => {
-                        if (
-                            packageHash &&
-                            !_.isEmpty(packages) &&
-                            !_.eq(_.get(packages, 'package_hash', ''), packageHash)
-                        ) {
-                            return PackagesDiff.findOne({
-                                where: {
-                                    package_id: packages.id,
-                                    diff_against_package_hash: packageHash,
-                                },
-                            }).then((diffPackage) => {
-                                if (!_.isEmpty(diffPackage)) {
-                                    rs.downloadURL = getBlobDownloadUrl(
-                                        _.get(diffPackage, 'diff_blob_url'),
-                                    );
-                                    rs.downloadUrl = getBlobDownloadUrl(
-                                        _.get(diffPackage, 'diff_blob_url'),
-                                    );
-                                    rs.packageSize = _.get(diffPackage, 'diff_size', 0);
-                                }
-                            });
-                        }
+                })
+                // eslint-disable-next-line max-lines-per-function
+                .then((deploymentsVersions) => {
+                    const packageId = _.get(deploymentsVersions, 'current_package_id', 0);
+                    if (_.eq(packageId, 0)) {
                         return undefined;
-                    });
-            })
-            .then(() => {
-                return rs;
-            });
+                    }
+                    return Packages.findByPk(packageId)
+                        .then(async (targetPackage) => {
+                            if (
+                                targetPackage &&
+                                _.eq(
+                                    targetPackage.deployment_id,
+                                    deploymentsVersions.deployment_id,
+                                ) &&
+                                !_.eq(targetPackage.package_hash, packageHash)
+                            ) {
+                                // Cấu hình thông tin cơ bản từ bản mới nhất trước
+                                rs.packageId = packageId;
+                                rs.targetBinaryRange = deploymentsVersions.app_version;
+                                rs.downloadURL = getBlobDownloadUrl(targetPackage.blob_url);
+                                rs.downloadUrl = rs.downloadURL;
+                                rs.isAvailable = !_.eq(targetPackage.is_disabled, 1);
+                                rs.isDisabled = !!_.eq(targetPackage.is_disabled, 1);
+                                rs.appVersion = appVersion;
+                                rs.packageHash = _.get(targetPackage, 'package_hash', '');
+                                rs.label = _.get(targetPackage, 'label', '');
+                                rs.packageSize = _.get(targetPackage, 'size', 0);
+                                rs.rollout = _.get(targetPackage, 'rollout', 100);
+
+                                // --- [LOGIC MỚI] MERGE DESCRIPTION & MANDATORY ---
+                                let finalDescription = _.get(targetPackage, 'description', '');
+                                let finalIsMandatory = !!_.eq(targetPackage.is_mandatory, 1);
+
+                                // Nếu người dùng đang có bản cũ (gửi lên packageHash)
+                                // Ta sẽ tìm tất cả các bản nằm giữa bản của User và bản Mới nhất
+                                if (packageHash) {
+                                    const currentPackage = await Packages.findOne({
+                                        where: {
+                                            package_hash: packageHash,
+                                            // Chỉ tìm trong cùng deployment để tránh conflict hash
+                                            deployment_id: targetPackage.deployment_id,
+                                        },
+                                    });
+
+                                    if (currentPackage && currentPackage.id < targetPackage.id) {
+                                        // Tìm các phiên bản trung gian (cũ -> mới)
+                                        // Điều kiện: ID > ID hiện tại của user VÀ ID <= ID bản mới nhất
+                                        const intermediatePackages = await Packages.findAll({
+                                            where: {
+                                                deployment_id: targetPackage.deployment_id,
+                                                id: {
+                                                    [Op.gt]: currentPackage.id,
+                                                    [Op.lte]: targetPackage.id,
+                                                },
+                                            },
+                                            order: [['id', 'DESC']], // Sắp xếp từ mới về cũ
+                                        });
+
+                                        // 1. Merge Description
+                                        const messages: string[] = [];
+                                        intermediatePackages.forEach((pkg) => {
+                                            if (pkg.description) {
+                                                // Format: [v2]: fix bug A
+                                                messages.push(`[${pkg.label}]: ${pkg.description}`);
+                                            }
+                                            // 2. Merge Mandatory
+                                            // Nếu có bất kỳ bản nào ở giữa là bắt buộc, thì bản update này cũng phải bắt buộc
+                                            if (pkg.is_mandatory === 1) {
+                                                finalIsMandatory = true;
+                                            }
+                                        });
+
+                                        if (messages.length > 0) {
+                                            finalDescription = messages.join('\n');
+                                        }
+                                    }
+                                }
+
+                                rs.description = finalDescription;
+                                rs.isMandatory = finalIsMandatory;
+                                // -----------------------------------------------
+                            }
+                            return targetPackage;
+                        })
+                        .then((packages) => {
+                            if (
+                                packageHash &&
+                                !_.isEmpty(packages) &&
+                                !_.eq(_.get(packages, 'package_hash', ''), packageHash)
+                            ) {
+                                return PackagesDiff.findOne({
+                                    where: {
+                                        package_id: packages.id,
+                                        diff_against_package_hash: packageHash,
+                                    },
+                                }).then((diffPackage) => {
+                                    if (!_.isEmpty(diffPackage)) {
+                                        rs.downloadURL = getBlobDownloadUrl(
+                                            _.get(diffPackage, 'diff_blob_url'),
+                                        );
+                                        rs.downloadUrl = getBlobDownloadUrl(
+                                            _.get(diffPackage, 'diff_blob_url'),
+                                        );
+                                        rs.packageSize = _.get(diffPackage, 'diff_size', 0);
+                                    }
+                                });
+                            }
+                            return undefined;
+                        });
+                })
+                .then(() => {
+                    return rs;
+                })
+        );
     }
 
     private getPackagesInfo(deploymentKey, label) {
