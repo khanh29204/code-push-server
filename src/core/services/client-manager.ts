@@ -159,6 +159,40 @@ class ClientManager {
         });
     }
 
+    private async computeMergedInfo(deploymentId: number, minId: number, targetId: number) {
+        const hasMandatory = await Packages.count({
+            where: {
+                deployment_id: deploymentId,
+                id: { [Op.gt]: minId, [Op.lte]: targetId },
+                is_disabled: 0,
+                is_mandatory: 1,
+            },
+        });
+
+        const intermediatePackages = await Packages.findAll({
+            where: {
+                deployment_id: deploymentId,
+                id: { [Op.gt]: minId, [Op.lte]: targetId },
+                is_disabled: 0,
+            },
+            order: [['id', 'DESC']],
+            limit: 15,
+        });
+
+        const messages: string[] = [];
+        intermediatePackages.forEach((pkg) => {
+            if (pkg.description) {
+                const pkgLabel = pkg.label || 'unknown';
+                messages.push(`[${pkgLabel}]: ${pkg.description}`);
+            }
+        });
+
+        return {
+            description: messages.length > 0 ? messages.join('\n') : '',
+            isMandatory: hasMandatory > 0,
+        };
+    }
+
     // eslint-disable-next-line max-lines-per-function
     private async updateCheck(
         deploymentKey: string,
@@ -268,44 +302,25 @@ class ClientManager {
                                 finalIsMandatory = parsed.isMandatory;
                             } catch (error) {
                                 logger.warn(`[Cache] Invalid JSON for ${cacheKey}, deleting...`);
-                                redisClient.del(cacheKey);
+                                await redisClient.del(cacheKey).catch((err) => {
+                                    logger.error(
+                                        `[Cache] Failed to delete invalid cache key ${cacheKey}`,
+                                        err,
+                                    );
+                                });
                             }
                         } else {
                             // MISS CACHE: Query DB và tính toán
                             logger.debug(`[Cache Miss] ${cacheKey} - Querying DB...`);
                             // Kiểm tra mandatory riêng — không giới hạn limit
-                            const hasMandatory = await Packages.count({
-                                where: {
-                                    deployment_id: targetPackage.deployment_id,
-                                    id: { [Op.gt]: minId, [Op.lte]: targetPackage.id },
-                                    is_disabled: 0,
-                                    is_mandatory: 1,
-                                },
-                            });
-                            if (hasMandatory > 0) finalIsMandatory = true;
-                            const intermediatePackages = await Packages.findAll({
-                                where: {
-                                    deployment_id: targetPackage.deployment_id,
-                                    id: {
-                                        [Op.gt]: minId,
-                                        [Op.lte]: targetPackage.id,
-                                    },
-                                    is_disabled: 0,
-                                },
-                                order: [['id', 'DESC']],
-                                limit: 15,
-                            });
 
-                            const messages: string[] = [];
-                            intermediatePackages.forEach((pkg) => {
-                                if (pkg.description) {
-                                    messages.push(`[${pkg.label}]: ${pkg.description}`);
-                                }
-                            });
-
-                            if (messages.length > 0) {
-                                finalDescription = messages.join('\n');
-                            }
+                            const { description, isMandatory } = await this.computeMergedInfo(
+                                targetPackage.deployment_id,
+                                minId,
+                                targetPackage.id,
+                            );
+                            finalDescription = description;
+                            finalIsMandatory = isMandatory;
 
                             // C. Lưu vào Redis (TTL: 24 giờ = 86400 giây)
                             // Dữ liệu quá khứ không đổi nên có thể cache lâu
