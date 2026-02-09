@@ -53,5 +53,12 @@ export const Packages = sequelize.define<PackagesInterface>(
         tableName: 'packages',
         underscored: true,
         paranoid: true,
+        indexes: [
+            {
+                name: 'idx_packages_deployment_hash',
+                unique: false,
+                fields: ['deployment_id', 'package_hash'],
+            },
+        ],
     },
 );
