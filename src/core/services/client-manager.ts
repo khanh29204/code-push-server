@@ -159,22 +159,27 @@ class ClientManager {
         });
     }
 
-    private async computeMergedInfo(deploymentId: number, minId: number, targetId: number) {
+    private async computeMergedInfo(
+        deploymentId: number,
+        deploymentVersionId: number,
+        minId: number,
+        targetId: number,
+    ) {
+        const commonWhere = {
+            deployment_id: deploymentId,
+            deployment_version_id: deploymentVersionId,
+            id: { [Op.gt]: minId, [Op.lte]: targetId },
+            is_disabled: 0,
+        };
         const hasMandatory = await Packages.count({
             where: {
-                deployment_id: deploymentId,
-                id: { [Op.gt]: minId, [Op.lte]: targetId },
-                is_disabled: 0,
+                ...commonWhere,
                 is_mandatory: 1,
             },
         });
 
         const intermediatePackages = await Packages.findAll({
-            where: {
-                deployment_id: deploymentId,
-                id: { [Op.gt]: minId, [Op.lte]: targetId },
-                is_disabled: 0,
-            },
+            where: commonWhere,
             order: [['id', 'DESC']],
             limit: 15,
         });
@@ -205,7 +210,6 @@ class ClientManager {
         const startTime = performance.now();
 
         const rs: UpdateCheckInfo = {
-            // ... (Giữ nguyên phần khởi tạo mặc định)
             packageId: 0,
             downloadURL: '',
             downloadUrl: '',
@@ -282,12 +286,14 @@ class ClientManager {
                         },
                     });
                     if (currentPackage) minId = currentPackage.id;
+                } else {
+                    minId = targetPackage.id - 1;
                 }
 
                 if (targetPackage.id > minId) {
                     // Tạo Cache Key: Dựa trên ID bản cũ và ID bản mới
                     // Ví dụ: MERGED_INFO:10:20 (Merge từ bản ID 10 lên bản ID 20)
-                    const cacheKey = `MERGED_INFO:${packageHash}:${targetPackage.id}`;
+                    const cacheKey = `MERGED_INFO:${deploymentKey}:${packageHash}:${targetPackage.id}`;
 
                     // B. Thử lấy từ Redis
                     let cachedData;
@@ -322,6 +328,7 @@ class ClientManager {
                     if (!cachedData || finalDescription === rs.description) {
                         const { description, isMandatory } = await this.computeMergedInfo(
                             targetPackage.deployment_id,
+                            deploymentsVersions.id,
                             minId,
                             targetPackage.id,
                         );
