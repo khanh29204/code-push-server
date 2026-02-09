@@ -253,58 +253,79 @@ class ClientManager {
                 if (targetPackage.id > minId) {
                     // Tạo Cache Key: Dựa trên ID bản cũ và ID bản mới
                     // Ví dụ: MERGED_INFO:10:20 (Merge từ bản ID 10 lên bản ID 20)
-                    const cacheKey = `MERGED_INFO:${minId}:${targetPackage.id}`;
+                    const cacheKey = `MERGED_INFO:${packageHash}:${targetPackage.id}`;
 
                     // B. Thử lấy từ Redis
-                    const cachedData = await redisClient.get(cacheKey);
+                    try {
+                        const cachedData = await redisClient.get(cacheKey);
 
-                    if (cachedData) {
-                        // HIT CACHE: Lấy luôn, không cần query DB nữa
-                        logger.debug(`[Cache Hit] ${cacheKey}`);
-                        const parsed = JSON.parse(cachedData);
-                        finalDescription = parsed.description;
-                        finalIsMandatory = parsed.isMandatory;
-                    } else {
-                        // MISS CACHE: Query DB và tính toán
-                        logger.debug(`[Cache Miss] ${cacheKey} - Querying DB...`);
-
-                        const intermediatePackages = await Packages.findAll({
-                            where: {
-                                deployment_id: targetPackage.deployment_id,
-                                id: {
-                                    [Op.gt]: minId,
-                                    [Op.lte]: targetPackage.id,
+                        if (cachedData) {
+                            // HIT CACHE: Lấy luôn, không cần query DB nữa
+                            logger.debug(`[Cache Hit] ${cacheKey}`);
+                            try {
+                                const parsed = JSON.parse(cachedData);
+                                finalDescription = parsed.description;
+                                finalIsMandatory = parsed.isMandatory;
+                            } catch (error) {
+                                logger.warn(`[Cache] Invalid JSON for ${cacheKey}, deleting...`);
+                                redisClient.del(cacheKey);
+                            }
+                        } else {
+                            // MISS CACHE: Query DB và tính toán
+                            logger.debug(`[Cache Miss] ${cacheKey} - Querying DB...`);
+                            // Kiểm tra mandatory riêng — không giới hạn limit
+                            const hasMandatory = await Packages.count({
+                                where: {
+                                    deployment_id: targetPackage.deployment_id,
+                                    id: { [Op.gt]: minId, [Op.lte]: targetPackage.id },
+                                    is_disabled: 0,
+                                    is_mandatory: 1,
                                 },
-                                is_disabled: 0,
-                            },
-                            order: [['id', 'DESC']],
-                            limit: 10,
-                        });
+                            });
+                            if (hasMandatory > 0) finalIsMandatory = true;
+                            const intermediatePackages = await Packages.findAll({
+                                where: {
+                                    deployment_id: targetPackage.deployment_id,
+                                    id: {
+                                        [Op.gt]: minId,
+                                        [Op.lte]: targetPackage.id,
+                                    },
+                                    is_disabled: 0,
+                                },
+                                order: [['id', 'DESC']],
+                                limit: 15,
+                            });
 
-                        const messages: string[] = [];
-                        intermediatePackages.forEach((pkg) => {
-                            if (pkg.description) {
-                                messages.push(`[${pkg.label}]: ${pkg.description}`);
-                            }
-                            if (pkg.is_mandatory === 1) {
-                                finalIsMandatory = true;
-                            }
-                        });
+                            const messages: string[] = [];
+                            intermediatePackages.forEach((pkg) => {
+                                if (pkg.description) {
+                                    messages.push(`[${pkg.label}]: ${pkg.description}`);
+                                }
+                            });
 
-                        if (messages.length > 0) {
-                            finalDescription = messages.join('\n');
+                            if (messages.length > 0) {
+                                finalDescription = messages.join('\n');
+                            }
+
+                            // C. Lưu vào Redis (TTL: 24 giờ = 86400 giây)
+                            // Dữ liệu quá khứ không đổi nên có thể cache lâu
+                            try {
+                                await redisClient.setEx(
+                                    cacheKey,
+                                    86400,
+                                    JSON.stringify({
+                                        description: finalDescription,
+                                        isMandatory: finalIsMandatory,
+                                    }),
+                                );
+                            } catch (e) {
+                                logger.warn(`[Cache] Failed to write ${cacheKey}`, { error: e });
+                            }
                         }
-
-                        // C. Lưu vào Redis (TTL: 24 giờ = 86400 giây)
-                        // Dữ liệu quá khứ không đổi nên có thể cache lâu
-                        await redisClient.setEx(
-                            cacheKey,
-                            86400,
-                            JSON.stringify({
-                                description: finalDescription,
-                                isMandatory: finalIsMandatory,
-                            }),
-                        );
+                    } catch (cacheError) {
+                        logger.warn('[Cache] Redis error, falling back to DB', {
+                            error: cacheError,
+                        });
                     }
                 }
 
