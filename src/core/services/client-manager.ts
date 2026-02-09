@@ -159,16 +159,53 @@ class ClientManager {
         });
     }
 
+    private async computeMergedInfo(deploymentId: number, minId: number, targetId: number) {
+        const hasMandatory = await Packages.count({
+            where: {
+                deployment_id: deploymentId,
+                id: { [Op.gt]: minId, [Op.lte]: targetId },
+                is_disabled: 0,
+                is_mandatory: 1,
+            },
+        });
+
+        const intermediatePackages = await Packages.findAll({
+            where: {
+                deployment_id: deploymentId,
+                id: { [Op.gt]: minId, [Op.lte]: targetId },
+                is_disabled: 0,
+            },
+            order: [['id', 'DESC']],
+            limit: 15,
+        });
+
+        const messages: string[] = [];
+        intermediatePackages.forEach((pkg) => {
+            if (pkg.description) {
+                const pkgLabel = pkg.label || 'unknown';
+                messages.push(`[${pkgLabel}]: ${pkg.description}`);
+            }
+        });
+
+        return {
+            description: messages.length > 0 ? messages.join('\n') : '',
+            isMandatory: hasMandatory > 0,
+        };
+    }
+
     // eslint-disable-next-line max-lines-per-function
-    private updateCheck(
+    private async updateCheck(
         deploymentKey: string,
         appVersion: string,
         label: string,
         packageHash: string,
         clientUniqueId: string,
         logger: Logger,
-    ) {
+    ): Promise<UpdateCheckInfo | undefined> {
+        const startTime = performance.now();
+
         const rs: UpdateCheckInfo = {
+            // ... (Giữ nguyên phần khởi tạo mặc định)
             packageId: 0,
             downloadURL: '',
             downloadUrl: '',
@@ -185,86 +222,159 @@ class ClientManager {
             shouldRunBinaryVersion: false,
             rollout: 100,
         };
-        if (_.isEmpty(deploymentKey) || _.isEmpty(appVersion)) {
-            return Promise.reject(new AppError('please input deploymentKey and appVersion'));
-        }
-        return Deployments.findOne({ where: { deployment_key: deploymentKey } })
-            .then((dep) => {
-                if (_.isEmpty(dep)) {
-                    throw new AppError('Not found deployment, check deployment key is right.');
-                }
-                const version = parseVersion(appVersion);
-                return DeploymentsVersions.findAll({
-                    where: {
-                        deployment_id: dep.id,
-                        min_version: { [Op.lte]: version },
-                        max_version: { [Op.gt]: version },
-                    },
-                }).then((deploymentsVersionsMore) => {
-                    const item = _.last(_.sortBy(deploymentsVersionsMore, 'created_at'));
-                    logger.debug({
-                        item,
-                    });
-                    return item;
-                });
-            })
-            .then((deploymentsVersions) => {
-                const packageId = _.get(deploymentsVersions, 'current_package_id', 0);
-                if (_.eq(packageId, 0)) {
-                    return undefined;
-                }
-                return Packages.findByPk(packageId)
-                    .then((packages) => {
-                        if (
-                            packages &&
-                            _.eq(packages.deployment_id, deploymentsVersions.deployment_id) &&
-                            !_.eq(packages.package_hash, packageHash)
-                        ) {
-                            rs.packageId = packageId;
-                            rs.targetBinaryRange = deploymentsVersions.app_version;
-                            rs.downloadURL = getBlobDownloadUrl(packages.blob_url);
-                            rs.downloadUrl = rs.downloadURL;
-                            rs.description = _.get(packages, 'description', '');
-                            rs.isAvailable = !_.eq(packages.is_disabled, 1);
-                            rs.isDisabled = !!_.eq(packages.is_disabled, 1);
-                            rs.isMandatory = !!_.eq(packages.is_mandatory, 1);
-                            rs.appVersion = appVersion;
-                            rs.packageHash = _.get(packages, 'package_hash', '');
-                            rs.label = _.get(packages, 'label', '');
-                            rs.packageSize = _.get(packages, 'size', 0);
-                            rs.rollout = _.get(packages, 'rollout', 100);
-                        }
-                        return packages;
-                    })
-                    .then((packages) => {
-                        if (
-                            packageHash &&
-                            !_.isEmpty(packages) &&
-                            !_.eq(_.get(packages, 'package_hash', ''), packageHash)
-                        ) {
-                            return PackagesDiff.findOne({
-                                where: {
-                                    package_id: packages.id,
-                                    diff_against_package_hash: packageHash,
-                                },
-                            }).then((diffPackage) => {
-                                if (!_.isEmpty(diffPackage)) {
-                                    rs.downloadURL = getBlobDownloadUrl(
-                                        _.get(diffPackage, 'diff_blob_url'),
-                                    );
-                                    rs.downloadUrl = getBlobDownloadUrl(
-                                        _.get(diffPackage, 'diff_blob_url'),
-                                    );
-                                    rs.packageSize = _.get(diffPackage, 'diff_size', 0);
-                                }
-                            });
-                        }
-                        return undefined;
-                    });
-            })
-            .then(() => {
-                return rs;
+
+        try {
+            // 1. Validate & 2. Tìm Deployment & 3. Tìm Version (Giữ nguyên code cũ)
+            if (_.isEmpty(deploymentKey) || _.isEmpty(appVersion)) {
+                throw new AppError('please input deploymentKey and appVersion');
+            }
+            const dep = await Deployments.findOne({ where: { deployment_key: deploymentKey } });
+            if (!dep) throw new AppError('Not found deployment');
+
+            const version = parseVersion(appVersion);
+            const deploymentsVersionsMore = await DeploymentsVersions.findAll({
+                where: {
+                    deployment_id: dep.id,
+                    min_version: { [Op.lte]: version },
+                    max_version: { [Op.gt]: version },
+                },
             });
+            const deploymentsVersions = _.last(_.sortBy(deploymentsVersionsMore, 'created_at'));
+            const targetPackageId = _.get(deploymentsVersions, 'current_package_id', 0);
+
+            if (!deploymentsVersions || targetPackageId <= 0) return undefined;
+
+            // 4. Tìm Package đích
+            const targetPackage = await Packages.findByPk(targetPackageId);
+            if (!targetPackage) return undefined;
+
+            const isSameDeployment =
+                targetPackage.deployment_id === deploymentsVersions.deployment_id;
+            const isDifferentHash = targetPackage.package_hash !== packageHash;
+
+            if (isSameDeployment && isDifferentHash) {
+                // Populate thông tin cơ bản
+                rs.packageId = targetPackageId;
+                rs.targetBinaryRange = deploymentsVersions.app_version;
+                rs.downloadURL = getBlobDownloadUrl(targetPackage.blob_url);
+                rs.downloadUrl = rs.downloadURL;
+                rs.description = targetPackage.description || '';
+                rs.isAvailable = targetPackage.is_disabled !== 1;
+                rs.isDisabled = targetPackage.is_disabled === 1;
+                rs.isMandatory = targetPackage.is_mandatory === 1;
+                rs.appVersion = appVersion;
+                rs.packageHash = targetPackage.package_hash;
+                rs.label = targetPackage.label;
+                rs.packageSize = targetPackage.size;
+                rs.rollout = targetPackage.rollout ?? 100;
+
+                // --- [REDIS CACHE LOGIC START] ---
+                let finalDescription = rs.description;
+                let finalIsMandatory = rs.isMandatory;
+                let minId = 0;
+
+                // A. Xác định minId (User đang ở bản nào)
+                if (packageHash) {
+                    const currentPackage = await Packages.findOne({
+                        where: {
+                            package_hash: packageHash,
+                            deployment_id: targetPackage.deployment_id,
+                        },
+                    });
+                    if (currentPackage) minId = currentPackage.id;
+                }
+
+                if (targetPackage.id > minId) {
+                    // Tạo Cache Key: Dựa trên ID bản cũ và ID bản mới
+                    // Ví dụ: MERGED_INFO:10:20 (Merge từ bản ID 10 lên bản ID 20)
+                    const cacheKey = `MERGED_INFO:${packageHash}:${targetPackage.id}`;
+
+                    // B. Thử lấy từ Redis
+                    let cachedData;
+                    try {
+                        cachedData = await redisClient.get(cacheKey);
+                        if (cachedData) {
+                            logger.debug(`[Cache Hit] ${cacheKey}`);
+                            try {
+                                const parsed = JSON.parse(cachedData);
+                                finalDescription = parsed.description;
+                                finalIsMandatory = parsed.isMandatory;
+                            } catch (error) {
+                                logger.warn(`[Cache] Invalid JSON for ${cacheKey}, deleting...`);
+                                await redisClient.del(cacheKey).catch((err) => {
+                                    logger.error(
+                                        `[Cache] Failed to delete invalid cache key ${cacheKey}`,
+                                        err,
+                                    );
+                                });
+                                cachedData = null;
+                            }
+                        }
+
+                        // MISS CACHE: Query DB và tính toán
+                    } catch (cacheError) {
+                        logger.warn('[Cache] Redis error, falling back to DB', {
+                            error: cacheError,
+                        });
+                    }
+
+                    // DB query nằm ngoài Redis try-catch
+                    if (!cachedData || finalDescription === rs.description) {
+                        const { description, isMandatory } = await this.computeMergedInfo(
+                            targetPackage.deployment_id,
+                            minId,
+                            targetPackage.id,
+                        );
+                        finalDescription = description;
+                        finalIsMandatory = isMandatory;
+
+                        try {
+                            await redisClient.setEx(
+                                cacheKey,
+                                86400,
+                                JSON.stringify({
+                                    description: finalDescription,
+                                    isMandatory: finalIsMandatory,
+                                }),
+                            );
+                        } catch (e) {
+                            logger.warn(`[Cache] Failed to write ${cacheKey}`, { error: e });
+                        }
+                    }
+                }
+
+                rs.description = finalDescription;
+                rs.isMandatory = finalIsMandatory;
+
+                // 5. Kiểm tra Diff Update
+                if (packageHash) {
+                    const diffPackage = await PackagesDiff.findOne({
+                        where: {
+                            package_id: targetPackage.id,
+                            diff_against_package_hash: packageHash,
+                        },
+                    });
+                    if (diffPackage) {
+                        const diffUrl = getBlobDownloadUrl(diffPackage.diff_blob_url);
+                        rs.downloadURL = diffUrl;
+                        rs.downloadUrl = diffUrl;
+                        rs.packageSize = diffPackage.diff_size;
+                    }
+                }
+            }
+            return rs;
+        } finally {
+            const endTime = performance.now();
+            const duration = (endTime - startTime).toFixed(2);
+            if (Number(duration) > 200) {
+                logger.warn(`[Slow Query] updateCheck took ${duration}ms`, {
+                    deploymentKey,
+                    appVersion,
+                });
+            } else {
+                logger.debug(`[Perf] updateCheck took ${duration}ms`);
+            }
+        }
     }
 
     private getPackagesInfo(deploymentKey, label) {
