@@ -11,7 +11,7 @@ services:
     depends_on:
       - redis
     # Lệnh chạy khởi tạo DB trước khi start server
-    command: sh -c "bun bin/db.js init && bun bin/www.js"
+    command: sh -c "bun bin/db.js init && bun bin/www.js --app-name=code-push-server"
 
 
   # MySQL service đã bị xóa
