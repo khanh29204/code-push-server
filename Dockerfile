@@ -35,7 +35,7 @@ RUN bun install --frozen-lockfile --production || bun install --production
 # ==============================================================================
 # Stage 4: Runner (Image cuối cùng)
 # Dùng bản alpine sạch, không cần build tools nữa
-FROM oven/bun:1-alpine AS runner
+FROM oven/bun:1.3.14-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
