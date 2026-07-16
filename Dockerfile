@@ -1,7 +1,7 @@
 # ==============================================================================
 # Base: Thiết lập môi trường chung
 # Sử dụng Bun trên nền Alpine để tối ưu dung lượng (nhỏ gọn ~50MB)
-FROM oven/bun:1-alpine AS base
+FROM oven/bun:1.3.14-alpine AS base
 WORKDIR /app
 # Cài đặt các công cụ build cần thiết cho module native (như sqlite3)
 # Bun vẫn cần python3, make, g++ để biên dịch các gói C++ native
