@@ -1,0 +1,58 @@
+<!DOCTYPE html><html><head><title>CodePush Server</title><meta name="keywords" content="code-push-server,code-push,react-native,cordova"><meta name="description" content="CodePush service is hotupdate services which adapter react-native-code-push and cordova-plugin-code-push"><link rel="stylesheet" href="/js/bootstrap-3.3.7/css/bootstrap.min.css"><link rel="stylesheet" href="/stylesheets/common.css"><link rel="stylesheet" href="/stylesheets/signin.css"></head><body><div class="container"><form class="form-signin" id="form" method="post"><h2 class="form-signin-heading">Please sign in</h2><label class="sr-only" for="inputEmail">email address／username</label><input class="form-control" id="inputEmail" type="text" name="account" placeholder="email address／username" required autofocus><label class="sr-only" for="inputPassword">password</label><input class="form-control" id="inputPassword" type="password" name="password" placeholder="password" required><a class="btn btn-lg btn-primary btn-block" id="submitBtn">Log in</a></form></div></body><script src="/js/jquery-3.1.1.min.js"></script><script src="/js/bootstrap-3.3.7/js/bootstrap.min.js"></script><script>function getAccessToken() {
+    return localStorage.getItem('auth');
+}
+function ensureLogin() {
+    if (!getAccessToken()) {
+        window.location.href = '/auth/login';
+    }
+}
+function logout() {
+    localStorage.removeItem('auth');
+    location.href = '/auth/login';
+}
+function parseQuery() {
+  query = location.search.substring(1);
+  var vars = query.split('&');
+  var rs = {};
+  for (var i = 0; i < vars.length; i++) {
+    var pair = vars[i].split('=');
+    rs[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
+  }
+  return rs;
+}</script><script>function onLoggedIn() {
+    var query = parseQuery()
+    if (query.hostname) {
+        // come from code-push-cli login
+        location.href = '/tokens/' + location.search;
+    } else {
+        location.href = '/';
+    }
+}
+
+if (getAccessToken()) {
+    onLoggedIn();
+}
+
+var submit = false;
+$('#submitBtn').on('click', function () {
+  if (submit) {
+    return ;
+  }
+  submit = true;
+  $.ajax({
+    type: 'post',
+    data: $('#form').serializeArray(),
+    url: $('#form').attr('action'),
+    dataType: 'json',
+    success: function (data) {
+      if (data.status == "OK") {
+        localStorage.setItem('auth', data.results.tokens)
+        submit = false;
+        onLoggedIn();
+      } else {
+        alert(data.message);
+        submit = false;
+      }
+    }
+  });
+});</script></html>

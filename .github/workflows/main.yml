@@ -9,6 +9,7 @@ on:
       - 'docs/**'
       - '.gitignore'
       - 'LICENSE'
+      - 'rust'
 
 jobs:
   build:
