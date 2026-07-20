@@ -70,6 +70,31 @@ impl Db {
         Ok(Self { pool, redis })
     }
 
+    /// Gracefully shut down the database: flush the WAL back into the main
+    /// database file and close all connections so SQLite can remove the
+    /// `-wal` and `-shm` side files.
+    ///
+    /// `wal_checkpoint(TRUNCATE)` writes every committed page from the WAL
+    /// into the main db file and truncates the WAL to zero length. Closing the
+    /// pool afterwards releases the last connection, which lets SQLite delete
+    /// the `-wal`/`-shm` files entirely.
+    pub async fn shutdown(&self) {
+        tracing::info!("Checkpointing WAL into the main database file...");
+
+        match sqlx::query("PRAGMA wal_checkpoint(TRUNCATE);")
+            .execute(&self.pool)
+            .await
+        {
+            Ok(_) => tracing::info!("WAL checkpoint completed."),
+            Err(e) => tracing::error!("WAL checkpoint failed: {}", e),
+        }
+
+        // Closing the pool releases the last SQLite connection, allowing the
+        // engine to remove the -wal and -shm files.
+        self.pool.close().await;
+        tracing::info!("SQLite connection pool closed.");
+    }
+
     /// Create all tables if they don't exist.
     /// Column names match the Rust model structs in src/models/*.rs exactly.
     async fn run_migrations(pool: &SqlitePool) -> Result<(), sqlx::Error> {
