@@ -1,8 +1,8 @@
 use axum::{
-    extract::{Query, State},
-    routing::{get, post},
-    response::Html,
     Json, Router,
+    extract::{Query, State},
+    response::Html,
+    routing::{get, post},
 };
 use serde::{Deserialize, Serialize};
 
@@ -73,8 +73,8 @@ pub struct UpdateInfo {
     pub package_hash: Option<String>,
     pub label: Option<String>,
     pub package_size: Option<i64>,
-    pub update_app_version: Option<bool>,
-    pub should_run_binary_version: Option<bool>,
+    pub update_app_version: bool,
+    pub should_run_binary_version: bool,
     pub rollout: Option<i64>,
 }
 
@@ -100,12 +100,13 @@ async fn update_check(
                 info.package_id,
                 Some(info.rollout),
                 query.client_unique_id.as_deref().unwrap_or(""),
-            ).await?;
+            )
+            .await?;
 
             if !data {
                 info.is_available = false;
             }
-            
+
             UpdateInfo {
                 download_url: Some(info.download_url),
                 description: Some(info.description),
@@ -116,11 +117,11 @@ async fn update_check(
                 package_hash: Some(info.package_hash),
                 label: Some(info.label),
                 package_size: Some(info.package_size),
-                update_app_version: None, // Or parse if available
-                should_run_binary_version: None, // Or parse if available
+                update_app_version: false,
+                should_run_binary_version: false,
                 rollout: None,
             }
-        },
+        }
         None => UpdateInfo {
             download_url: None,
             description: None,
@@ -131,15 +132,14 @@ async fn update_check(
             package_hash: None,
             label: None,
             package_size: None,
-            update_app_version: None,
-            should_run_binary_version: None,
+            update_app_version: false,
+            should_run_binary_version: false,
             rollout: None,
-        }
+        },
     };
 
     Ok(Json(UpdateCheckResponse { update_info: rs }))
 }
-
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -161,7 +161,8 @@ async fn report_status_download(
         &body.deployment_key,
         &body.label,
         &body.client_unique_id,
-    ).await;
+    )
+    .await;
 
     "OK"
 }
@@ -178,7 +179,8 @@ async fn report_status_deploy(
         body.status.as_deref(),
         body.previous_deployment_key.as_deref(),
         body.previous_label_or_app_version.as_deref(),
-    ).await;
+    )
+    .await;
 
     "OK"
 }
@@ -254,50 +256,58 @@ async fn storage_audit(
     State(state): State<AppState>,
 ) -> Result<Json<AuditReport>, crate::core::app_error::AppError> {
     if state.config.storage_type != "local" {
-        return Err(crate::core::app_error::AppError::new(
-            &format!("Audit API not supported for storageType: {}", state.config.storage_type)
-        ));
+        return Err(crate::core::app_error::AppError::new(&format!(
+            "Audit API not supported for storageType: {}",
+            state.config.storage_type
+        )));
     }
 
     let storage_dir = &state.config.local_storage_dir;
     if !std::path::Path::new(storage_dir).exists() {
-        return Err(crate::core::app_error::AppError::new(
-            &format!("Storage directory does not exist: {}", storage_dir)
-        ));
+        return Err(crate::core::app_error::AppError::new(&format!(
+            "Storage directory does not exist: {}",
+            storage_dir
+        )));
     }
 
     let mut disk_file_map = std::collections::HashMap::new();
     let mut total_size_bytes: u64 = 0;
 
-    for entry in walkdir::WalkDir::new(storage_dir).into_iter().filter_map(|e| e.ok()) {
-        if entry.file_type().is_file() {
-            if let Ok(metadata) = entry.metadata() {
-                let size = metadata.len();
-                total_size_bytes += size;
-                
-                let file_name = entry.file_name().to_string_lossy().into_owned();
-                let path = entry.path().to_string_lossy().into_owned();
-                let modified: std::time::SystemTime = metadata.modified().unwrap_or(std::time::SystemTime::UNIX_EPOCH);
-                let modified_time: chrono::DateTime<chrono::Utc> = modified.into();
+    for entry in walkdir::WalkDir::new(storage_dir)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
+        if entry.file_type().is_file()
+            && let Ok(metadata) = entry.metadata()
+        {
+            let size = metadata.len();
+            total_size_bytes += size;
 
-                disk_file_map.insert(
-                    file_name.clone(),
-                    DiskFileInfo {
-                        hash: file_name,
-                        size,
-                        full_path: path,
-                        modified_time,
-                    }
-                );
-            }
+            let file_name = entry.file_name().to_string_lossy().into_owned();
+            let path = entry.path().to_string_lossy().into_owned();
+            let modified: std::time::SystemTime = metadata
+                .modified()
+                .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+            let modified_time: chrono::DateTime<chrono::Utc> = modified.into();
+
+            disk_file_map.insert(
+                file_name.clone(),
+                DiskFileInfo {
+                    hash: file_name,
+                    size,
+                    full_path: path,
+                    modified_time,
+                },
+            );
         }
     }
 
     let db_packages = sqlx::query_as::<_, DbPackage>(
-        "SELECT id, label, package_hash, blob_url, manifest_blob_url FROM packages"
+        "SELECT id, label, package_hash, blob_url, manifest_blob_url FROM packages",
     )
     .fetch_all(&state.db.pool)
-    .await.map_err(|e| crate::core::app_error::AppError::new(&e.to_string()))?;
+    .await
+    .map_err(|e| crate::core::app_error::AppError::new(&e.to_string()))?;
 
     let mut report = AuditReport {
         summary: AuditSummary {
@@ -317,7 +327,9 @@ async fn storage_audit(
 
     for pkg in &db_packages {
         let mut check_file = |hash: &str, file_type: &str| {
-            if hash.is_empty() { return; }
+            if hash.is_empty() {
+                return;
+            }
             valid_hashes.insert(hash.to_string());
 
             if let Some(file_info) = disk_file_map.get(hash) {
@@ -331,11 +343,11 @@ async fn storage_audit(
                 });
             } else {
                 let expected_path = std::path::Path::new(storage_dir)
-                    .join(&hash[0..2].to_lowercase())
+                    .join(hash[0..2].to_lowercase())
                     .join(hash)
                     .to_string_lossy()
                     .into_owned();
-                
+
                 report.missing_files.push(MissingFile {
                     package_id: pkg.id,
                     label: pkg.label.clone(),
@@ -360,7 +372,10 @@ async fn storage_audit(
                 hash: hash.clone(),
                 size: format!("{:.2} MB", info.size as f64 / 1024.0 / 1024.0),
                 path: info.full_path.clone(),
-                modified: info.modified_time.format("%Y-%m-%dT%H:%M:%S.%3fZ").to_string(),
+                modified: info
+                    .modified_time
+                    .format("%Y-%m-%dT%H:%M:%S.%3fZ")
+                    .to_string(),
             });
         }
     }
@@ -369,7 +384,9 @@ async fn storage_audit(
     report.summary.missing_files_count = report.missing_files.len();
     report.summary.orphaned_files_count = report.orphaned_files.len();
 
-    report.valid_files.sort_by(|a, b| b.package_id.cmp(&a.package_id));
+    report
+        .valid_files
+        .sort_by(|a, b| b.package_id.cmp(&a.package_id));
 
     Ok(Json(report))
 }

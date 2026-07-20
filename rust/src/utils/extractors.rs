@@ -1,10 +1,10 @@
+use crate::core::app_error::AppError;
 use axum::{
+    Form, Json,
     extract::{FromRequest, Request},
     http::header::CONTENT_TYPE,
-    Form, Json,
 };
 use serde::de::DeserializeOwned;
-use crate::core::app_error::AppError;
 
 pub struct JsonOrForm<T>(pub T);
 

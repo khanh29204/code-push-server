@@ -1,8 +1,8 @@
 use axum::{
+    Json, Router,
     extract::{Query, State},
     response::{Html, IntoResponse, Redirect},
     routing::{get, post},
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 
@@ -40,7 +40,8 @@ async fn register_page(
     Query(_query): Query<EmailQuery>,
 ) -> axum::response::Response {
     if state.config.allow_registration {
-        Html(std::fs::read_to_string("../public/html/register.html").unwrap_or_else(|_| "".into())).into_response()
+        Html(std::fs::read_to_string("../public/html/register.html").unwrap_or_else(|_| "".into()))
+            .into_response()
     } else {
         Redirect::to("/auth/login").into_response()
     }
@@ -74,38 +75,40 @@ pub struct TokensResult {
 
 async fn login(
     State(state): State<AppState>,
-    crate::utils::extractors::JsonOrForm(payload): crate::utils::extractors::JsonOrForm<LoginRequest>,
+    crate::utils::extractors::JsonOrForm(payload): crate::utils::extractors::JsonOrForm<
+        LoginRequest,
+    >,
 ) -> Result<Json<LoginResponse>, crate::core::app_error::AppError> {
     let account = payload.account.unwrap_or_default();
     let password = payload.password.unwrap_or_default();
-    
-    let user = crate::services::account_manager::AccountManager::login(&state, &account, &password).await?;
-    
+
+    let user = crate::services::account_manager::AccountManager::login(&state, &account, &password)
+        .await?;
+
     #[derive(serde::Serialize)]
     struct Claims {
         uid: i64,
         hash: String,
         exp: usize,
     }
-    
+
     let now = chrono::Utc::now().timestamp() as usize;
     let claims = Claims {
         uid: user.id,
         hash: crate::utils::security::md5_hash(&user.ack_code),
         exp: now + 7200,
     };
-    
+
     let token = jsonwebtoken::encode(
         &jsonwebtoken::Header::default(),
         &claims,
-        &jsonwebtoken::EncodingKey::from_secret(state.config.jwt_token_secret.as_bytes())
-    ).map_err(|_| crate::core::app_error::AppError::General("Token creation error".into()))?;
-    
+        &jsonwebtoken::EncodingKey::from_secret(state.config.jwt_token_secret.as_bytes()),
+    )
+    .map_err(|_| crate::core::app_error::AppError::General("Token creation error".into()))?;
+
     Ok(Json(LoginResponse {
         status: "OK".to_string(),
-        results: Some(TokensResult {
-            tokens: token,
-        }),
+        results: Some(TokensResult { tokens: token }),
         message: None,
     }))
 }

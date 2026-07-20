@@ -10,12 +10,12 @@ mod routes;
 mod services;
 mod utils;
 
-use axum::{routing::get, Router};
+use axum::ServiceExt;
+use axum::{Router, routing::get};
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tracing::info;
 use tower::Layer;
-use axum::ServiceExt;
+use tracing::info;
 
 use crate::config::AppConfig;
 use crate::core::db::{AppState, Db};
@@ -25,20 +25,25 @@ use crate::utils::storage::StorageManager;
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Initialize tracing
     tracing_subscriber::fmt::init();
-    
+
     // Load configuration
     let config = AppConfig::load();
     let port = config.port;
-    
+
     info!("Starting CodePush server on Rust...");
 
-    // Connect to MongoDB
+    // Connect to the SQLite database
     let db = Db::connect(&config).await?;
-    
-    // Initialize Storage Manager (Local or R2)
+
+    // Initialize the local storage manager
     let storage = StorageManager::new(config.clone()).await;
 
     let local_storage_dir = config.local_storage_dir.clone();
+
+    // Static Web UI directory. Defaults to "../public" (matches the Docker
+    // WORKDIR /app/rust layout where UI files live at /app/public), but can be
+    // overridden via PUBLIC_DIR so it does not depend on the current working dir.
+    let public_dir = std::env::var("PUBLIC_DIR").unwrap_or_else(|_| "../public".to_string());
 
     // Create AppState
     let state = AppState {
@@ -51,8 +56,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let app = Router::new()
         .merge(crate::routes::api_router())
         .route("/health", get(|| async { "OK" }))
-        .nest_service("/download", tower_http::services::ServeDir::new(local_storage_dir))
-        .fallback_service(tower_http::services::ServeDir::new("../public"))
+        .nest_service(
+            "/download",
+            tower_http::services::ServeDir::new(local_storage_dir),
+        )
+        .fallback_service(tower_http::services::ServeDir::new(&public_dir))
         .with_state(state);
 
     let app = tower_http::normalize_path::NormalizePathLayer::trim_trailing_slash().layer(app);
@@ -60,9 +68,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Start server
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     info!("Listening on {}", addr);
-    
+
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, tower::make::Shared::new(app)).await?;
-    
+
     Ok(())
 }

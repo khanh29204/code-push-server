@@ -35,23 +35,48 @@ pub fn validator_version(version_no: &str) -> (bool, String, String) {
         if let Some(caps) = re_3.captures(version_no) {
             flag = true;
             min = format!("{}{:0>5}{:0>10}", &caps[1], &caps[2], &caps[3]);
-            max = format!("{}{:0>5}{:0>10}", &caps[1], &caps[2], caps[3].parse::<u64>().unwrap() + 1);
+            max = format!(
+                "{}{:0>5}{:0>10}",
+                &caps[1],
+                &caps[2],
+                caps[3].parse::<u64>().unwrap() + 1
+            );
         } else if let Some(caps) = re_2.captures(version_no) {
             flag = true;
             min = format!("{}{:0>5}{:0>10}", &caps[1], &caps[2], "0");
-            max = format!("{}{:0>5}{:0>10}", &caps[1], caps[2].parse::<u64>().unwrap() + 1, "0");
+            max = format!(
+                "{}{:0>5}{:0>10}",
+                &caps[1],
+                caps[2].parse::<u64>().unwrap() + 1,
+                "0"
+            );
         } else if let Some(caps) = re_tilde.captures(version_no) {
             flag = true;
             min = format!("{}{:0>5}{:0>10}", &caps[1], &caps[2], &caps[3]);
-            max = format!("{}{:0>5}{:0>10}", &caps[1], caps[2].parse::<u64>().unwrap() + 1, "0");
+            max = format!(
+                "{}{:0>5}{:0>10}",
+                &caps[1],
+                caps[2].parse::<u64>().unwrap() + 1,
+                "0"
+            );
         } else if let Some(caps) = re_caret.captures(version_no) {
             flag = true;
             min = format!("{}{:0>5}{:0>10}", &caps[1], &caps[2], &caps[3]);
-            max = format!("{}{:0>5}{:0>10}", caps[1].parse::<u64>().unwrap() + 1, "0", "0");
+            max = format!(
+                "{}{:0>5}{:0>10}",
+                caps[1].parse::<u64>().unwrap() + 1,
+                "0",
+                "0"
+            );
         } else if let Some(caps) = re_range.captures(version_no) {
             flag = true;
             min = format!("{}{:0>5}{:0>10}", &caps[1], &caps[2], &caps[3]);
-            max = format!("{}{:0>5}{:0>10}", &caps[4], &caps[5], caps[6].parse::<u64>().unwrap() + 1);
+            max = format!(
+                "{}{:0>5}{:0>10}",
+                &caps[4],
+                &caps[5],
+                caps[6].parse::<u64>().unwrap() + 1
+            );
         } else if let Some(caps) = re_ge_lt.captures(version_no) {
             flag = true;
             min = format!("{}{:0>5}{:0>10}", &caps[1], &caps[2], &caps[3]);
@@ -62,7 +87,10 @@ pub fn validator_version(version_no: &str) -> (bool, String, String) {
     (flag, min, max)
 }
 
-pub async fn create_file_from_request<P: AsRef<Path>>(url: &str, file_path: P) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+pub async fn create_file_from_request<P: AsRef<Path>>(
+    url: &str,
+    file_path: P,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let path = file_path.as_ref();
     if path.exists() {
         return Ok(());
@@ -84,7 +112,11 @@ pub async fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> std::
     while let Some(entry) = entries.next_entry().await? {
         let ty = entry.file_type().await?;
         if ty.is_dir() {
-            Box::pin(copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))).await?;
+            Box::pin(copy_dir_all(
+                entry.path(),
+                dst.as_ref().join(entry.file_name()),
+            ))
+            .await?;
         } else {
             fs::copy(entry.path(), dst.as_ref().join(entry.file_name())).await?;
         }
@@ -105,10 +137,13 @@ pub async fn create_empty_folder<P: AsRef<Path>>(folder_path: P) -> std::io::Res
     Ok(())
 }
 
-pub async fn unzip_file<P: AsRef<Path>, Q: AsRef<Path>>(zip_file: P, output_path: Q) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+pub async fn unzip_file<P: AsRef<Path>, Q: AsRef<Path>>(
+    zip_file: P,
+    output_path: Q,
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let file = std::fs::File::open(zip_file.as_ref())?;
     let mut archive = ZipArchive::new(file)?;
-    
+
     for i in 0..archive.len() {
         let mut file = archive.by_index(i)?;
         let outpath = match file.enclosed_name() {
@@ -119,10 +154,10 @@ pub async fn unzip_file<P: AsRef<Path>, Q: AsRef<Path>>(zip_file: P, output_path
         if (*file.name()).ends_with('/') {
             std::fs::create_dir_all(&outpath)?;
         } else {
-            if let Some(p) = outpath.parent() {
-                if !p.exists() {
-                    std::fs::create_dir_all(p)?;
-                }
+            if let Some(p) = outpath.parent()
+                && !p.exists()
+            {
+                std::fs::create_dir_all(p)?;
             }
             let mut outfile = std::fs::File::create(&outpath)?;
             std::io::copy(&mut file, &mut outfile)?;
@@ -139,16 +174,24 @@ pub struct DiffResult {
     pub collection2_only: Vec<String>,
 }
 
-pub fn get_blob_download_url(blob_url: &str) -> String {
+pub fn get_blob_download_url(download_url: &str, blob_url: &str) -> String {
     let sub_dir = if blob_url.len() >= 2 {
         blob_url[0..2].to_lowercase()
     } else {
         "00".to_string()
     };
-    format!("/download/{}/{}", sub_dir, blob_url)
+    format!(
+        "{}/{}/{}",
+        download_url.trim_end_matches('/'),
+        sub_dir,
+        blob_url
+    )
 }
 
-pub fn diff_collections(collection1: &BTreeMap<String, String>, collection2: &BTreeMap<String, String>) -> DiffResult {
+pub fn diff_collections(
+    collection1: &BTreeMap<String, String>,
+    collection2: &BTreeMap<String, String>,
+) -> DiffResult {
     let mut diff = Vec::new();
     let mut collection1_only = Vec::new();
     let mut collection2_keys: HashSet<&String> = collection2.keys().collect();

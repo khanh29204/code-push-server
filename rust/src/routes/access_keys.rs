@@ -1,7 +1,7 @@
 use axum::{
+    Json, Router,
     extract::{Path, State},
     routing::{delete, get},
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 
@@ -56,33 +56,58 @@ async fn get_access_keys(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
 ) -> Result<Json<GetAccessKeysResponse>, AppError> {
-    let keys = crate::services::account_manager::AccountManager::get_all_access_key_by_uid(&state.db.pool, user.id).await?;
-    let access_keys = keys.into_iter().map(|k| AccessKeyInfo {
-        name: k.name,
-        created_time: k.created_time,
-        created_by: k.created_by,
-        expires: k.expires,
-        description: k.description,
-        friendly_name: k.friendly_name,
-    }).collect();
+    let keys = crate::services::account_manager::AccountManager::get_all_access_key_by_uid(
+        &state.db.pool,
+        user.id,
+    )
+    .await?;
+    let access_keys = keys
+        .into_iter()
+        .map(|k| AccessKeyInfo {
+            name: k.name,
+            created_time: k.created_time,
+            created_by: k.created_by,
+            expires: k.expires,
+            description: k.description,
+            friendly_name: k.friendly_name,
+        })
+        .collect();
     Ok(Json(GetAccessKeysResponse { access_keys }))
 }
 
 async fn create_access_key(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
-    crate::utils::extractors::JsonOrForm(payload): crate::utils::extractors::JsonOrForm<CreateAccessKeyRequest>,
+    crate::utils::extractors::JsonOrForm(payload): crate::utils::extractors::JsonOrForm<
+        CreateAccessKeyRequest,
+    >,
 ) -> Result<Json<CreateAccessKeyResponse>, AppError> {
     let pool = &state.db.pool;
     let manager = crate::services::account_manager::AccountManager;
-    
-    if let Some(_) = crate::services::account_manager::AccountManager::is_exist_access_key_name(pool, user.id, &payload.friendly_name).await? {
-        return Err(AppError::General(format!("The access key \"{}\" already exists.", payload.friendly_name)));
+
+    if let Some(_) = crate::services::account_manager::AccountManager::is_exist_access_key_name(
+        pool,
+        user.id,
+        &payload.friendly_name,
+    )
+    .await?
+    {
+        return Err(AppError::General(format!(
+            "The access key \"{}\" already exists.",
+            payload.friendly_name
+        )));
     }
-    
-    let new_access_key = format!("{}{}", crate::utils::security::rand_token(28), user.identical);
-    let ttl = payload.ttl.parse::<i64>().unwrap_or(60 * 60 * 24 * 30 * 1000); // default to something if needed, wait, Node parses it, wait, let's just parse
-    
+
+    let new_access_key = format!(
+        "{}{}",
+        crate::utils::security::rand_token(28),
+        user.identical
+    );
+    let ttl = payload
+        .ttl
+        .parse::<i64>()
+        .unwrap_or(60 * 60 * 24 * 30 * 1000); // default to something if needed, wait, Node parses it, wait, let's just parse
+
     crate::services::account_manager::AccountManager::create_access_key(
         pool,
         user.id,
@@ -91,8 +116,9 @@ async fn create_access_key(
         &payload.friendly_name,
         &payload.created_by,
         &payload.description,
-    ).await?;
-    
+    )
+    .await?;
+
     Ok(Json(CreateAccessKeyResponse {
         access_key: AccessKeyInfo {
             name: new_access_key,
@@ -115,7 +141,7 @@ async fn delete_access_key(
         .bind(user.id)
         .execute(&state.db.pool)
         .await?;
-        
+
     Ok(Json(DeleteAccessKeyResponse {
         friendly_name: name,
     }))

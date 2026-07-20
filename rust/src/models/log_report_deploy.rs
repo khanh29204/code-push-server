@@ -12,4 +12,3 @@ pub struct LogReportDeploy {
     pub previous_deployment_key: String,
     pub created_at: Option<NaiveDateTime>,
 }
-

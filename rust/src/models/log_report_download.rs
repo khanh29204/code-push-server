@@ -9,4 +9,3 @@ pub struct LogReportDownload {
     pub client_unique_id: String,
     pub created_at: Option<NaiveDateTime>,
 }
-

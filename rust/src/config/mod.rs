@@ -34,15 +34,15 @@ pub struct AppConfig {
     pub redis: RedisConfig,
 
     // Storage
-    pub storage_type: String,         // "local" | "s3" | "qiniu" | "oss" | "tencentcloud"
+    pub storage_type: String, // "local" | "s3" | "qiniu" | "oss" | "tencentcloud"
     pub local_storage_dir: String,
-    pub download_url: String,         // e.g. http://127.0.0.1:3000/download
+    pub download_url: String, // e.g. http://127.0.0.1:3000/download
 
     // Common
     pub allow_registration: bool,
     pub try_login_times: i32,
-    pub diff_nums: i32,               // Number of diff packages to generate (default 3)
-    pub data_dir: String,             // Temp dir for diff calculation
+    pub diff_nums: i32,   // Number of diff packages to generate (default 3)
+    pub data_dir: String, // Temp dir for diff calculation
     pub update_check_cache: bool,
     pub rollout_client_unique_id_cache: bool,
 
@@ -53,10 +53,13 @@ pub struct AppConfig {
 impl AppConfig {
     pub fn load() -> Self {
         dotenv::dotenv().ok();
-        
-        let port = env::var("PORT").unwrap_or_else(|_| "3000".to_string()).parse().unwrap_or(3000);
+
+        let port = env::var("PORT")
+            .unwrap_or_else(|_| "3000".to_string())
+            .parse()
+            .unwrap_or(3000);
         let log_level = env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_string());
-        
+
         // Database
         let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| {
             if let Ok(db_file) = env::var("DB_STORAGE_FILE") {
@@ -67,7 +70,7 @@ impl AppConfig {
                 "sqlite:///data/codepush.sqlite".to_string()
             }
         });
-        
+
         // JWT
         let jwt_token_secret = env::var("JWT_TOKEN_SECRET")
             .or_else(|_| env::var("TOKEN_SECRET"))
@@ -76,9 +79,15 @@ impl AppConfig {
         // Redis
         let redis = RedisConfig {
             host: env::var("REDIS_HOST").unwrap_or_else(|_| "127.0.0.1".to_string()),
-            port: env::var("REDIS_PORT").unwrap_or_else(|_| "6379".to_string()).parse().unwrap_or(6379),
+            port: env::var("REDIS_PORT")
+                .unwrap_or_else(|_| "6379".to_string())
+                .parse()
+                .unwrap_or(6379),
             password: env::var("REDIS_PASSWORD").ok().filter(|s| !s.is_empty()),
-            db: env::var("REDIS_DB").unwrap_or_else(|_| "0".to_string()).parse().unwrap_or(0),
+            db: env::var("REDIS_DB")
+                .unwrap_or_else(|_| "0".to_string())
+                .parse()
+                .unwrap_or(0),
         };
 
         // Storage
@@ -94,9 +103,16 @@ impl AppConfig {
         let allow_registration = env::var("ALLOW_REGISTRATION")
             .map(|v| v == "true" || v == "1")
             .unwrap_or(false);
-        let try_login_times = env::var("TRY_LOGIN_TIMES").unwrap_or_else(|_| "4".to_string()).parse().unwrap_or(4);
-        let diff_nums = env::var("DIFF_NUMS").unwrap_or_else(|_| "3".to_string()).parse().unwrap_or(3);
-        let data_dir = env::var("DATA_DIR").unwrap_or_else(|_| std::env::temp_dir().to_string_lossy().to_string());
+        let try_login_times = env::var("TRY_LOGIN_TIMES")
+            .unwrap_or_else(|_| "4".to_string())
+            .parse()
+            .unwrap_or(4);
+        let diff_nums = env::var("DIFF_NUMS")
+            .unwrap_or_else(|_| "3".to_string())
+            .parse()
+            .unwrap_or(3);
+        let data_dir = env::var("DATA_DIR")
+            .unwrap_or_else(|_| std::env::temp_dir().to_string_lossy().to_string());
         let update_check_cache = env::var("UPDATE_CHECK_CACHE")
             .map(|v| v == "true" || v == "1")
             .unwrap_or(false);
@@ -107,7 +123,10 @@ impl AppConfig {
         // SMTP
         let smtp = SmtpConfig {
             host: env::var("SMTP_HOST").unwrap_or_default(),
-            port: env::var("SMTP_PORT").unwrap_or_else(|_| "465".to_string()).parse().unwrap_or(465),
+            port: env::var("SMTP_PORT")
+                .unwrap_or_else(|_| "465".to_string())
+                .parse()
+                .unwrap_or(465),
             secure: true,
             username: env::var("SMTP_USERNAME").unwrap_or_default(),
             password: env::var("SMTP_PASSWORD").unwrap_or_default(),

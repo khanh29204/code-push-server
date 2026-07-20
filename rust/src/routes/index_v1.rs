@@ -1,7 +1,7 @@
 use axum::{
+    Json, Router,
     extract::{Query, State},
     routing::{get, post},
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 
@@ -40,8 +40,8 @@ pub struct UpdateInfo {
     pub package_hash: Option<String>,
     pub label: Option<String>,
     pub package_size: Option<i64>,
-    pub update_app_version: Option<bool>,
-    pub should_run_binary_version: Option<bool>,
+    pub update_app_version: bool,
+    pub should_run_binary_version: bool,
 }
 
 async fn update_check(
@@ -66,12 +66,13 @@ async fn update_check(
                 info.package_id,
                 Some(info.rollout),
                 query.client_unique_id.as_deref().unwrap_or(""),
-            ).await?;
+            )
+            .await?;
 
             if !data {
                 info.is_available = false;
             }
-            
+
             UpdateInfo {
                 download_url: Some(info.download_url),
                 description: Some(info.description),
@@ -82,10 +83,10 @@ async fn update_check(
                 package_hash: Some(info.package_hash),
                 label: Some(info.label),
                 package_size: Some(info.package_size),
-                update_app_version: None, // Or parse if available
-                should_run_binary_version: None, // Or parse if available
+                update_app_version: false,
+                should_run_binary_version: false,
             }
-        },
+        }
         None => UpdateInfo {
             download_url: None,
             description: None,
@@ -96,9 +97,9 @@ async fn update_check(
             package_hash: None,
             label: None,
             package_size: None,
-            update_app_version: None,
-            should_run_binary_version: None,
-        }
+            update_app_version: false,
+            should_run_binary_version: false,
+        },
     };
 
     Ok(Json(UpdateCheckResponse { update_info: rs }))
@@ -123,7 +124,8 @@ async fn report_status_download(
         &body.deployment_key,
         &body.label,
         &body.client_unique_id,
-    ).await;
+    )
+    .await;
 
     "OK"
 }
@@ -140,7 +142,8 @@ async fn report_status_deploy(
         body.status.as_deref(),
         body.previous_deployment_key.as_deref(),
         body.previous_label_or_app_version.as_deref(),
-    ).await;
+    )
+    .await;
 
     "OK"
 }

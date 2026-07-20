@@ -1,4 +1,4 @@
-use base64::{engine::general_purpose::URL_SAFE, Engine as _};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE};
 use sha1::{Digest, Sha1};
 use std::path::Path;
 use tokio::fs::File;
@@ -6,12 +6,14 @@ use tokio::io::{AsyncReadExt, BufReader};
 
 const BLOCK_SIZE: usize = 4 * 1024 * 1024; // 4MB
 
-pub async fn calc_qetag<P: AsRef<Path>>(file_path: P) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+pub async fn calc_qetag<P: AsRef<Path>>(
+    file_path: P,
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let file = File::open(file_path).await?;
     let mut reader = BufReader::with_capacity(BLOCK_SIZE, file);
     let mut sha1_blocks = Vec::new();
     let mut block_count = 0;
-    
+
     let mut buffer = vec![0u8; BLOCK_SIZE];
 
     loop {

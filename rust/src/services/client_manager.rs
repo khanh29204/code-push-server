@@ -1,14 +1,14 @@
-use sqlx::SqlitePool;
-use bb8_redis::{bb8, RedisConnectionManager, redis::AsyncCommands};
-use serde::{Deserialize, Serialize};
+use bb8_redis::{RedisConnectionManager, bb8, redis::AsyncCommands};
 use rand::Rng;
+use serde::{Deserialize, Serialize};
+use sqlx::SqlitePool;
 
 use crate::core::app_error::AppError;
 use crate::models::deployments::Deployment;
 use crate::models::deployments_versions::DeploymentVersion;
 use crate::models::packages::Packages;
 use crate::models::packages_diff::PackagesDiff;
-use crate::utils::common::{parse_version, get_blob_download_url};
+use crate::utils::common::{get_blob_download_url, parse_version};
 
 #[derive(Serialize, Deserialize)]
 pub struct UpdateCheckInfo {
@@ -59,7 +59,11 @@ impl ClientManager {
         let mut messages = Vec::new();
         for pkg in intermediate_packages {
             if !pkg.description.is_empty() {
-                let pkg_label = if pkg.label.is_empty() { "unknown" } else { &pkg.label };
+                let pkg_label = if pkg.label.is_empty() {
+                    "unknown"
+                } else {
+                    &pkg.label
+                };
                 messages.push(format!("[{}]: {}", pkg_label, pkg.description));
             }
         }
@@ -103,11 +107,20 @@ impl ClientManager {
             return Err(AppError::new("please input deploymentKey and appVersion"));
         }
 
-        let cache_key = format!("UPDATE_CHECK:{}:{}:{}:{}", deployment_key, app_version, label, package_hash);
-        let mut conn = redis.get().await.map_err(|e| AppError::new(&format!("Redis error: {}", e)))?;
-        
+        let cache_key = format!(
+            "UPDATE_CHECK:{}:{}:{}:{}",
+            deployment_key, app_version, label, package_hash
+        );
+        let mut conn = redis
+            .get()
+            .await
+            .map_err(|e| AppError::new(&format!("Redis error: {}", e)))?;
+
         if use_cache {
-            let cached_data: Option<String> = bb8_redis::redis::AsyncCommands::get(&mut *conn, &cache_key).await.unwrap_or(None);
+            let cached_data: Option<String> =
+                bb8_redis::redis::AsyncCommands::get(&mut *conn, &cache_key)
+                    .await
+                    .unwrap_or(None);
             if let Some(data) = cached_data {
                 if data == "null" {
                     return Ok(None);
@@ -118,13 +131,12 @@ impl ClientManager {
             }
         }
 
-        let dep = sqlx::query_as::<_, Deployment>(
-            "SELECT * FROM deployments WHERE deployment_key = ?"
-        )
-        .bind(deployment_key)
-        .fetch_optional(pool)
-        .await?
-        .ok_or_else(|| AppError::new("Not found deployment"))?;
+        let dep =
+            sqlx::query_as::<_, Deployment>("SELECT * FROM deployments WHERE deployment_key = ?")
+                .bind(deployment_key)
+                .fetch_optional(pool)
+                .await?
+                .ok_or_else(|| AppError::new("Not found deployment"))?;
 
         let version = parse_version(app_version);
 
@@ -147,12 +159,10 @@ impl ClientManager {
             return Ok(None);
         }
 
-        let target_package = sqlx::query_as::<_, Packages>(
-            "SELECT * FROM packages WHERE id = ?"
-        )
-        .bind(target_package_id)
-        .fetch_optional(pool)
-        .await?;
+        let target_package = sqlx::query_as::<_, Packages>("SELECT * FROM packages WHERE id = ?")
+            .bind(target_package_id)
+            .fetch_optional(pool)
+            .await?;
 
         let target_package = match target_package {
             Some(p) => p,
@@ -166,7 +176,10 @@ impl ClientManager {
             let mut rs = UpdateCheckInfo {
                 package_id: target_package.id,
                 target_binary_range: deployments_version.app_version.clone(),
-                download_url: get_blob_download_url(&target_package.blob_url),
+                download_url: get_blob_download_url(
+                    &state.config.download_url,
+                    &target_package.blob_url,
+                ),
                 description: target_package.description.clone(),
                 is_available: target_package.is_disabled == 0,
                 is_disabled: target_package.is_disabled == 1,
@@ -184,13 +197,13 @@ impl ClientManager {
 
             if !package_hash.is_empty() {
                 let current_package = sqlx::query_as::<_, Packages>(
-                    "SELECT * FROM packages WHERE package_hash = ? AND deployment_id = ?"
+                    "SELECT * FROM packages WHERE package_hash = ? AND deployment_id = ?",
                 )
                 .bind(package_hash)
                 .bind(target_package.deployment_id)
                 .fetch_optional(pool)
                 .await?;
-                
+
                 if let Some(cp) = current_package {
                     min_id = cp.id;
                 }
@@ -199,22 +212,34 @@ impl ClientManager {
             }
 
             if target_package.id > min_id {
-                let merged_cache_key = format!("MERGED_INFO:{}:{}:{}", deployment_key, package_hash, target_package.id);
+                let merged_cache_key = format!(
+                    "MERGED_INFO:{}:{}:{}",
+                    deployment_key, package_hash, target_package.id
+                );
                 let merged_data: Option<String> = conn.get(&merged_cache_key).await.unwrap_or(None);
-                
+
                 let mut hit = false;
-                if let Some(data) = merged_data {
-                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&data) {
-                        if let (Some(desc), Some(mand)) = (parsed.get("description").and_then(|v| v.as_str()), parsed.get("isMandatory").and_then(|v| v.as_bool())) {
-                            final_description = desc.to_string();
-                            final_is_mandatory = mand;
-                            hit = true;
-                        }
-                    }
+                if let Some(data) = merged_data
+                    && let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&data)
+                    && let (Some(desc), Some(mand)) = (
+                        parsed.get("description").and_then(|v| v.as_str()),
+                        parsed.get("isMandatory").and_then(|v| v.as_bool()),
+                    )
+                {
+                    final_description = desc.to_string();
+                    final_is_mandatory = mand;
+                    hit = true;
                 }
 
                 if !hit {
-                    let (desc, mand) = Self::compute_merged_info(pool, target_package.deployment_id, deployments_version.id, min_id, target_package.id).await?;
+                    let (desc, mand) = Self::compute_merged_info(
+                        pool,
+                        target_package.deployment_id,
+                        deployments_version.id,
+                        min_id,
+                        target_package.id,
+                    )
+                    .await?;
                     final_description = desc.clone();
                     final_is_mandatory = mand;
 
@@ -222,7 +247,10 @@ impl ClientManager {
                         "description": desc,
                         "isMandatory": mand
                     });
-                    let _: () = conn.set_ex(&merged_cache_key, cache_val.to_string(), 86400).await.unwrap_or(());
+                    let _: () = conn
+                        .set_ex(&merged_cache_key, cache_val.to_string(), 86400)
+                        .await
+                        .unwrap_or(());
                 }
             }
 
@@ -240,22 +268,29 @@ impl ClientManager {
                 .await?;
 
                 if let Some(diff) = diff_package {
-                    rs.download_url = get_blob_download_url(&diff.diff_blob_url);
-                    rs.package_size = diff.diff_size as i64;
+                    rs.download_url =
+                        get_blob_download_url(&state.config.download_url, &diff.diff_blob_url);
+                    rs.package_size = diff.diff_size;
                 }
             }
 
-            if let Ok(json) = serde_json::to_string(&rs) {
-                if use_cache {
-                    let _: () = bb8_redis::redis::AsyncCommands::set_ex(&mut *conn, &cache_key, json, 600).await.unwrap_or(());
-                }
+            if let Ok(json) = serde_json::to_string(&rs)
+                && use_cache
+            {
+                let _: () =
+                    bb8_redis::redis::AsyncCommands::set_ex(&mut *conn, &cache_key, json, 600)
+                        .await
+                        .unwrap_or(());
             }
 
             return Ok(Some(rs));
         }
 
         if use_cache {
-            let _: () = bb8_redis::redis::AsyncCommands::set_ex(&mut *conn, &cache_key, "null", 600).await.unwrap_or(());
+            let _: () =
+                bb8_redis::redis::AsyncCommands::set_ex(&mut *conn, &cache_key, "null", 600)
+                    .await
+                    .unwrap_or(());
         }
         Ok(None)
     }
@@ -266,16 +301,15 @@ impl ClientManager {
         label: &str,
         client_unique_id: &str,
     ) -> Result<(), AppError> {
-        let dep = sqlx::query_as::<_, Deployment>(
-            "SELECT * FROM deployments WHERE deployment_key = ?"
-        )
-        .bind(deployment_key)
-        .fetch_optional(pool)
-        .await?
-        .ok_or_else(|| AppError::new("does not found deployment"))?;
+        let dep =
+            sqlx::query_as::<_, Deployment>("SELECT * FROM deployments WHERE deployment_key = ?")
+                .bind(deployment_key)
+                .fetch_optional(pool)
+                .await?
+                .ok_or_else(|| AppError::new("does not found deployment"))?;
 
         let package = sqlx::query_as::<_, Packages>(
-            "SELECT * FROM packages WHERE deployment_id = ? AND label = ?"
+            "SELECT * FROM packages WHERE deployment_id = ? AND label = ?",
         )
         .bind(dep.id)
         .bind(label)
@@ -285,12 +319,10 @@ impl ClientManager {
 
         let mut tx = pool.begin().await?;
 
-        sqlx::query(
-            "UPDATE packages_metrics SET downloaded = downloaded + 1 WHERE package_id = ?"
-        )
-        .bind(package.id)
-        .execute(&mut *tx)
-        .await?;
+        sqlx::query("UPDATE packages_metrics SET downloaded = downloaded + 1 WHERE package_id = ?")
+            .bind(package.id)
+            .execute(&mut *tx)
+            .await?;
 
         sqlx::query(
             "INSERT INTO log_report_download (package_id, client_unique_id, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)"
@@ -314,16 +346,15 @@ impl ClientManager {
         previous_deployment_key: Option<&str>,
         previous_label_or_app_version: Option<&str>,
     ) -> Result<(), AppError> {
-        let dep = sqlx::query_as::<_, Deployment>(
-            "SELECT * FROM deployments WHERE deployment_key = ?"
-        )
-        .bind(deployment_key)
-        .fetch_optional(pool)
-        .await?
-        .ok_or_else(|| AppError::new("does not found deployment"))?;
+        let dep =
+            sqlx::query_as::<_, Deployment>("SELECT * FROM deployments WHERE deployment_key = ?")
+                .bind(deployment_key)
+                .fetch_optional(pool)
+                .await?
+                .ok_or_else(|| AppError::new("does not found deployment"))?;
 
         let package = sqlx::query_as::<_, Packages>(
-            "SELECT * FROM packages WHERE deployment_id = ? AND label = ?"
+            "SELECT * FROM packages WHERE deployment_id = ? AND label = ?",
         )
         .bind(dep.id)
         .bind(label)
@@ -367,9 +398,11 @@ impl ClientManager {
                 .await?;
             }
 
-            if let (Some(prev_dep_key), Some(prev_label)) = (previous_deployment_key, previous_label_or_app_version) {
+            if let (Some(prev_dep_key), Some(prev_label)) =
+                (previous_deployment_key, previous_label_or_app_version)
+            {
                 let prev_dep = sqlx::query_as::<_, Deployment>(
-                    "SELECT * FROM deployments WHERE deployment_key = ?"
+                    "SELECT * FROM deployments WHERE deployment_key = ?",
                 )
                 .bind(prev_dep_key)
                 .fetch_optional(&mut *tx)
@@ -377,7 +410,7 @@ impl ClientManager {
 
                 if let Some(p_dep) = prev_dep {
                     let prev_pkg = sqlx::query_as::<_, Packages>(
-                        "SELECT * FROM packages WHERE deployment_id = ? AND label = ?"
+                        "SELECT * FROM packages WHERE deployment_id = ? AND label = ?",
                     )
                     .bind(p_dep.id)
                     .bind(prev_label)
@@ -386,7 +419,7 @@ impl ClientManager {
 
                     if let Some(p_pkg) = prev_pkg {
                         sqlx::query(
-                            "UPDATE packages_metrics SET active = active - 1 WHERE package_id = ?"
+                            "UPDATE packages_metrics SET active = active - 1 WHERE package_id = ?",
                         )
                         .bind(p_pkg.id)
                         .execute(&mut *tx)
@@ -414,8 +447,11 @@ impl ClientManager {
         }
 
         let cache_key = format!("CHOSEN_MAN:{}:{}:{}", package_id, rollout, client_unique_id);
-        let mut conn = redis.get().await.map_err(|e| AppError::new(&format!("Redis error: {}", e)))?;
-        
+        let mut conn = redis
+            .get()
+            .await
+            .map_err(|e| AppError::new(&format!("Redis error: {}", e)))?;
+
         let data: Option<String> = conn.get(&cache_key).await.unwrap_or(None);
         if let Some(val) = data {
             if val == "1" {
@@ -432,7 +468,10 @@ impl ClientManager {
         };
 
         let val = if chosen { "1" } else { "2" };
-        let _: () = conn.set_ex(&cache_key, val, 60 * 60 * 24 * 7).await.unwrap_or(());
+        let _: () = conn
+            .set_ex(&cache_key, val, 60 * 60 * 24 * 7)
+            .await
+            .unwrap_or(());
 
         Ok(chosen)
     }

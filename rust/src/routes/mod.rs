@@ -1,14 +1,14 @@
-use axum::Router;
 use crate::core::db::AppState;
+use axum::Router;
 
+pub mod access_keys;
+pub mod account;
+pub mod apps;
+pub mod auth;
 pub mod index;
 pub mod index_v1;
 pub mod middleware;
-pub mod apps;
-pub mod auth;
 pub mod users;
-pub mod access_keys;
-pub mod account;
 
 pub fn api_router() -> Router<AppState> {
     Router::new()

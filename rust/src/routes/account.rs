@@ -1,7 +1,4 @@
-use axum::{
-    routing::get,
-    Json, Router,
-};
+use axum::{Json, Router, routing::get};
 use serde::{Deserialize, Serialize};
 
 use crate::core::{app_error::AppError, db::AppState};
@@ -24,14 +21,12 @@ pub fn router() -> Router<AppState> {
     Router::new().route("/", get(get_account))
 }
 
-async fn get_account(
-    AuthUser(user): AuthUser,
-) -> Result<Json<AccountResponse>, AppError> {
+async fn get_account(AuthUser(user): AuthUser) -> Result<Json<AccountResponse>, AppError> {
     let account = AccountInfo {
         email: user.email,
         linked_providers: vec![],
         name: user.username,
     };
-    
+
     Ok(Json(AccountResponse { account }))
 }

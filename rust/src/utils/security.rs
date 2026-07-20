@@ -1,7 +1,7 @@
-use bcrypt::{hash, verify, DEFAULT_COST, BcryptError};
+use bcrypt::{BcryptError, DEFAULT_COST, hash, verify};
 use md5;
 use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
+use rand::{Rng, thread_rng};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -91,19 +91,22 @@ pub fn package_hash_sync(json_data: &BTreeMap<String, String>) -> String {
         .filter(|(k, _)| !is_package_hash_ignored(k))
         .map(|(k, v)| format!("{}:{}", k, v))
         .collect();
-        
+
     manifest_data.sort();
-    
+
     let mut manifest_string = serde_json::to_string(&manifest_data).unwrap_or_default();
     manifest_string = manifest_string.replace("\\/", "/");
-    
+
     string_sha256_sync(&manifest_string)
 }
 
 pub fn upload_package_type<P: AsRef<Path>>(directory_path: P) -> Result<i64, String> {
     let mut package_type = 0;
-    
-    for entry in WalkDir::new(directory_path).into_iter().filter_map(|e| e.ok()) {
+
+    for entry in WalkDir::new(directory_path)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
         if entry.file_type().is_file() {
             let path_str = entry.path().to_string_lossy();
             if path_str.contains("android.bundle") {
@@ -116,38 +119,43 @@ pub fn upload_package_type<P: AsRef<Path>>(directory_path: P) -> Result<i64, Str
             }
         }
     }
-    
+
     if package_type == 0 {
         return Err("empty files or unknown package type".to_string());
     }
     Ok(package_type)
 }
 
-pub async fn calc_all_file_sha256<P: AsRef<Path>>(directory_path: P) -> Result<BTreeMap<String, String>, std::io::Error> {
+pub async fn calc_all_file_sha256<P: AsRef<Path>>(
+    directory_path: P,
+) -> Result<BTreeMap<String, String>, std::io::Error> {
     let dir = directory_path.as_ref();
     let mut results = BTreeMap::new();
-    
+
     let mut files_to_hash = Vec::new();
-    
+
     for entry in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
         if entry.file_type().is_file() {
             let relative = entry.path().strip_prefix(dir).unwrap_or(entry.path());
             let relative_str = relative.to_string_lossy().replace("\\", "/");
-            
+
             if !is_hash_ignored(&relative_str) {
                 files_to_hash.push((entry.path().to_path_buf(), relative_str));
             }
         }
     }
-    
+
     if files_to_hash.is_empty() {
-        return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "empty files"));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "empty files",
+        ));
     }
-    
+
     for (file_path, relative_str) in files_to_hash {
         let hash = file_sha256(file_path).await?;
         results.insert(relative_str, hash);
     }
-    
+
     Ok(results)
 }

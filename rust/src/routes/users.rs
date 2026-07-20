@@ -1,7 +1,7 @@
 use axum::{
+    Json, Router,
     extract::{Query, State},
     routing::{get, patch, post},
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 
@@ -54,11 +54,15 @@ async fn register(
     let password = payload.password.trim();
 
     if password.len() < 6 {
-        return Err(AppError::new("Please enter a password between 6 and 20 characters long"));
+        return Err(AppError::new(
+            "Please enter a password between 6 and 20 characters long",
+        ));
     }
 
-    crate::services::account_manager::AccountManager::check_register_code(&state, email, token).await?;
-    crate::services::account_manager::AccountManager::register(&state.db.pool, email, password).await?;
+    crate::services::account_manager::AccountManager::check_register_code(&state, email, token)
+        .await?;
+    crate::services::account_manager::AccountManager::register(&state.db.pool, email, password)
+        .await?;
 
     Ok(Json(OkResponse::default()))
 }
@@ -88,7 +92,12 @@ async fn get_exists(
         return Err(AppError::new("Please enter your email address"));
     }
 
-    let exists = crate::services::account_manager::AccountManager::find_user_by_email(&state.db.pool, &email).await.is_ok();
+    let exists = crate::services::account_manager::AccountManager::find_user_by_email(
+        &state.db.pool,
+        &email,
+    )
+    .await
+    .is_ok();
 
     Ok(Json(ExistsResponse {
         status: "OK".to_string(),
@@ -110,7 +119,7 @@ async fn send_register_code(
     let email = payload.email.trim();
 
     crate::services::account_manager::AccountManager::send_register_code(&state, email).await?;
-    
+
     Ok(Json(OkResponse::default()))
 }
 
@@ -128,7 +137,8 @@ async fn check_register_code(
     let email = query.email.trim();
     let token = query.token.trim();
 
-    crate::services::account_manager::AccountManager::check_register_code(&state, email, token).await?;
+    crate::services::account_manager::AccountManager::check_register_code(&state, email, token)
+        .await?;
 
     Ok(Json(OkResponse::default()))
 }
@@ -150,7 +160,13 @@ async fn change_password(
     let old_password = payload.old_password.trim();
     let new_password = payload.new_password.trim();
 
-    crate::services::account_manager::AccountManager::change_password(&state.db.pool, user.id, old_password, new_password).await?;
+    crate::services::account_manager::AccountManager::change_password(
+        &state.db.pool,
+        user.id,
+        old_password,
+        new_password,
+    )
+    .await?;
 
     Ok(Json(OkResponse::default()))
 }

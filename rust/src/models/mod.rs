@@ -1,6 +1,5 @@
 // SQLite models
 pub mod apps;
-pub mod users;
 pub mod collaborators;
 pub mod deployments;
 pub mod deployments_history;
@@ -11,4 +10,5 @@ pub mod packages;
 pub mod packages_diff;
 pub mod packages_metrics;
 pub mod user_tokens;
+pub mod users;
 pub mod versions;

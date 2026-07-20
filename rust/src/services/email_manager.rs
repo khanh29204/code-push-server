@@ -1,19 +1,39 @@
-use crate::core::app_error::AppError;
 use crate::config::AppConfig;
+use crate::core::app_error::AppError;
 use lettre::{
-    AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
+    AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor, message::header::ContentType,
     transport::smtp::authentication::Credentials,
 };
 
 pub struct EmailManager;
 
 impl EmailManager {
-    pub async fn send_register_code_mail(config: &AppConfig, email: &str, code: &str) -> Result<(), AppError> {
+    pub async fn send_register_code_mail(
+        config: &AppConfig,
+        email: &str,
+        code: &str,
+    ) -> Result<(), AppError> {
+        // Khớp hành vi TS: khi không có smtp host thì coi như no-op (resolve({})).
+        if config.smtp.host.is_empty() {
+            return Ok(());
+        }
+
+        // Nội dung/style HTML giống sendRegisterCodeMail trong TS.
+        let html = format!(
+            "<div>Your verification code is: <em style=\"color:red;\">{}</em> valid for 20 minutes</div>",
+            code
+        );
+
         let email = Message::builder()
-            .from(format!("CodePush Server <{}>", config.smtp.username).parse().unwrap())
+            .from(
+                format!("CodePush Server <{}>", config.smtp.username)
+                    .parse()
+                    .unwrap(),
+            )
             .to(email.parse().unwrap())
-            .subject("CodePush Server Registration Code")
-            .body(format!("Your registration code is: {}", code))
+            .subject("CodePush Server")
+            .header(ContentType::TEXT_HTML)
+            .body(html)
             .map_err(|e| AppError::new(&format!("Failed to build email: {}", e)))?;
 
         let creds = Credentials::new(config.smtp.username.clone(), config.smtp.password.clone());
@@ -33,7 +53,10 @@ impl EmailManager {
                 .build()
         };
 
-        mailer.send(email).await.map_err(|e| AppError::new(&format!("Failed to send email: {}", e)))?;
+        mailer
+            .send(email)
+            .await
+            .map_err(|e| AppError::new(&format!("Failed to send email: {}", e)))?;
 
         Ok(())
     }

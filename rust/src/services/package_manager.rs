@@ -6,21 +6,21 @@ use crate::models::deployments_versions::DeploymentVersion;
 use crate::models::packages::Packages;
 use crate::models::packages_diff::PackagesDiff;
 use crate::models::packages_metrics::PackagesMetrics;
+use crate::services::datacenter_manager::{DataCenterManager, PackageInfo};
 use crate::utils::common::{
-    copy_dir_all, create_empty_folder, delete_folder, diff_collections, get_blob_download_url,
-    unzip_file, validator_version, create_file_from_request
+    copy_dir_all, create_empty_folder, create_file_from_request, delete_folder, diff_collections,
+    get_blob_download_url, unzip_file, validator_version,
 };
 use crate::utils::qetag::calc_qetag;
 use crate::utils::security::{rand_token, upload_package_type};
 use crate::utils::storage::StorageManager;
-use crate::services::datacenter_manager::{DataCenterManager, PackageInfo};
 use serde::{Deserialize, Serialize};
 use sqlx::{Row, SqlitePool};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use tokio::fs;
-use zip::write::FileOptions;
 use zip::ZipWriter;
+use zip::write::FileOptions;
 
 pub struct PackageManager;
 
@@ -93,12 +93,10 @@ impl PackageManager {
             if dv.current_package_id < 0 {
                 return Err(AppError::General("not found last packages".into()));
             }
-            let package = sqlx::query_as::<_, Packages>(
-                "SELECT * FROM packages WHERE id = ?",
-            )
-            .bind(dv.current_package_id)
-            .fetch_optional(pool)
-            .await?;
+            let package = sqlx::query_as::<_, Packages>("SELECT * FROM packages WHERE id = ?")
+                .bind(dv.current_package_id)
+                .fetch_optional(pool)
+                .await?;
             Ok(package)
         } else {
             Err(AppError::General("deployments_versions not found".into()))
@@ -150,17 +148,15 @@ impl PackageManager {
         if package_id < 0 {
             return Ok(false);
         }
-        let package = sqlx::query_as::<_, Packages>(
-            "SELECT * FROM packages WHERE id = ?",
-        )
-        .bind(package_id)
-        .fetch_optional(pool)
-        .await?;
+        let package = sqlx::query_as::<_, Packages>("SELECT * FROM packages WHERE id = ?")
+            .bind(package_id)
+            .fetch_optional(pool)
+            .await?;
 
-        if let Some(p) = package {
-            if p.package_hash == package_hash {
-                return Ok(true);
-            }
+        if let Some(p) = package
+            && p.package_hash == package_hash
+        {
+            return Ok(true);
         }
         Ok(false)
     }
@@ -196,17 +192,20 @@ impl PackageManager {
         let is_disabled = params.is_disabled;
         let original_label = params.original_label;
         let original_deployment = params.original_deployment;
-        
+
         // Parse version
         let (is_valid, min_version, max_version) = validator_version(app_version);
         if !is_valid {
-            return Err(AppError::General(format!("targetBinaryVersion {} not support.", app_version)));
+            return Err(AppError::General(format!(
+                "targetBinaryVersion {} not support.",
+                app_version
+            )));
         }
 
         let mut tx = pool.begin().await?;
 
         let label_id = Self::generate_deployments_label_id(&mut tx, deployment_id).await?;
-        
+
         let dv = Self::create_deployments_version_if_not_exist(
             &mut tx,
             deployment_id,
@@ -283,7 +282,8 @@ impl PackageManager {
     ) -> Result<PathBuf, AppError> {
         let file = std::fs::File::create(file_name)?;
         let mut zip = ZipWriter::new(file);
-        let options = FileOptions::<'_, ()>::default().compression_method(zip::CompressionMethod::Deflated);
+        let options =
+            FileOptions::<'_, ()>::default().compression_method(zip::CompressionMethod::Deflated);
 
         for f in files {
             let p = base_directory_path.join(f);
@@ -300,7 +300,8 @@ impl PackageManager {
         Ok(file_name.to_path_buf())
     }
 
-    pub async fn release_package(config: &crate::config::AppConfig, 
+    pub async fn release_package(
+        config: &crate::config::AppConfig,
         pool: &SqlitePool,
         storage: &StorageManager,
         app_id: i64,
@@ -312,7 +313,10 @@ impl PackageManager {
         let app_version = package_info.app_version.clone().unwrap_or_default();
         let (is_valid, _, _) = validator_version(&app_version);
         if !is_valid {
-            return Err(AppError::General(format!("targetBinaryVersion {} not support.", app_version)));
+            return Err(AppError::General(format!(
+                "targetBinaryVersion {} not support.",
+                app_version
+            )));
         }
 
         let tmp_dir = std::path::Path::new(&config.data_dir);
@@ -331,15 +335,19 @@ impl PackageManager {
 
         if package_type > 0 && app_info.os > 0 && app_info.os != package_type {
             let _ = delete_folder(&directory_path_parent).await;
-            return Err(AppError::General("it must be publish it by ios type".into()));
+            return Err(AppError::General(
+                "it must be publish it by ios type".into(),
+            ));
         }
 
-        let data_center = DataCenterManager::store_package(config, &directory_path.to_string_lossy(), false).await?;
+        let data_center =
+            DataCenterManager::store_package(config, &directory_path.to_string_lossy(), false)
+                .await?;
         let package_hash = data_center.package_hash.clone();
         let manifest_file_path = std::path::PathBuf::from(data_center.manifest_file_path);
 
         let dv = sqlx::query_as::<_, DeploymentVersion>(
-            "SELECT * FROM deployments_versions WHERE deployment_id = ? AND app_version = ?"
+            "SELECT * FROM deployments_versions WHERE deployment_id = ? AND app_version = ?",
         )
         .bind(deployment_id)
         .bind(&app_version)
@@ -347,7 +355,8 @@ impl PackageManager {
         .await?;
 
         if let Some(dv) = dv {
-            let is_exist = Self::is_match_package_hash(pool, dv.current_package_id, &package_hash).await?;
+            let is_exist =
+                Self::is_match_package_hash(pool, dv.current_package_id, &package_hash).await?;
             if is_exist {
                 let _ = delete_folder(&directory_path_parent).await;
                 return Err(AppError::General("The uploaded package is identical to the contents of the specified deployment's current release.".into()));
@@ -357,8 +366,12 @@ impl PackageManager {
         let manifest_hash = calc_qetag(&manifest_file_path).await?;
 
         // Upload to storage
-        storage.upload_file(&manifest_hash, manifest_file_path.to_str().unwrap()).await?;
-        storage.upload_file(&blob_hash, file_path.to_str().unwrap()).await?;
+        storage
+            .upload_file(&manifest_hash, manifest_file_path.to_str().unwrap())
+            .await?;
+        storage
+            .upload_file(&blob_hash, file_path.to_str().unwrap())
+            .await?;
 
         let file_size = tokio::fs::metadata(file_path).await?.len() as i64;
 
@@ -382,14 +395,17 @@ impl PackageManager {
             &manifest_hash,
             &blob_hash,
             create_params,
-        ).await?;
+        )
+        .await?;
 
         let _ = delete_folder(&directory_path_parent).await;
 
         Ok(package)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn generate_one_diff_package(
+        config: &crate::config::AppConfig,
         pool: &SqlitePool,
         storage: &StorageManager,
         work_directory_path: &Path,
@@ -399,52 +415,63 @@ impl PackageManager {
         diff_manifest_blob_hash: &str,
     ) -> Result<Option<PackagesDiff>, AppError> {
         let diff_package = sqlx::query_as::<_, PackagesDiff>(
-            "SELECT * FROM packages_diff WHERE package_id = ? AND diff_against_package_hash = ?"
+            "SELECT * FROM packages_diff WHERE package_id = ? AND diff_against_package_hash = ?",
         )
         .bind(package_id)
         .bind(diff_package_hash)
         .fetch_optional(pool)
         .await?;
-        
+
         if diff_package.is_some() {
             return Ok(None);
         }
-        
-        let download_url = get_blob_download_url(diff_manifest_blob_hash);
+
+        let download_url = get_blob_download_url(&config.download_url, diff_manifest_blob_hash);
         let diff_manifest_path = work_directory_path.join(diff_manifest_blob_hash);
         create_file_from_request(&download_url, &diff_manifest_path).await?;
-        
+
         let data_center_content_path = work_directory_path.join("dataCenter");
         copy_dir_all(&origin_data_center.content_path, &data_center_content_path).await?;
-        
-        let origin_manifest_str = fs::read_to_string(&origin_data_center.manifest_file_path).await?;
-        let origin_manifest_json: BTreeMap<String, String> = serde_json::from_str(&origin_manifest_str)?;
-        
+
+        let origin_manifest_str =
+            fs::read_to_string(&origin_data_center.manifest_file_path).await?;
+        let origin_manifest_json: BTreeMap<String, String> =
+            serde_json::from_str(&origin_manifest_str)?;
+
         let diff_manifest_str = fs::read_to_string(&diff_manifest_path).await?;
-        let diff_manifest_json: BTreeMap<String, String> = serde_json::from_str(&diff_manifest_str)?;
-        
+        let diff_manifest_json: BTreeMap<String, String> =
+            serde_json::from_str(&diff_manifest_str)?;
+
         let diff_result = diff_collections(&origin_manifest_json, &diff_manifest_json);
-        
+
         let mut files = diff_result.diff.clone();
         files.extend(diff_result.collection1_only.clone());
-        
+
         // Code push expects a JSON with deletedFiles and patchedFiles
         let hotcodepush = serde_json::json!({
             "deletedFiles": diff_result.collection2_only,
             "patchedFiles": []
         });
-        
-        let hot_code_push_file = work_directory_path.join(format!("{}_hotcodepush", diff_manifest_blob_hash));
+
+        let hot_code_push_file =
+            work_directory_path.join(format!("{}_hotcodepush", diff_manifest_blob_hash));
         fs::write(&hot_code_push_file, serde_json::to_string(&hotcodepush)?).await?;
-        
+
         let file_name = work_directory_path.join(format!("{}.zip", diff_manifest_blob_hash));
-        Self::zip_diff_package(&file_name, &files, &data_center_content_path, &hot_code_push_file)?;
-        
+        Self::zip_diff_package(
+            &file_name,
+            &files,
+            &data_center_content_path,
+            &hot_code_push_file,
+        )?;
+
         let diff_hash = calc_qetag(&file_name).await?;
-        storage.upload_file(&diff_hash, file_name.to_str().unwrap()).await?;
-        
+        storage
+            .upload_file(&diff_hash, file_name.to_str().unwrap())
+            .await?;
+
         let stats = tokio::fs::metadata(&file_name).await?;
-        
+
         let diff = sqlx::query_as::<_, PackagesDiff>(
             "INSERT INTO packages_diff (package_id, diff_against_package_hash, diff_blob_url, diff_size, created_at, updated_at) VALUES (?, ?, ?, ?, datetime('now'), datetime('now')) RETURNING *"
         )
@@ -454,11 +481,12 @@ impl PackageManager {
         .bind(stats.len() as i64)
         .fetch_one(pool)
         .await?;
-        
+
         Ok(Some(diff))
     }
 
-    pub async fn create_diff_packages_by_last_nums(config: &crate::config::AppConfig, 
+    pub async fn create_diff_packages_by_last_nums(
+        config: &crate::config::AppConfig,
         pool: &SqlitePool,
         storage: &StorageManager,
         app_id: i64,
@@ -486,7 +514,7 @@ impl PackageManager {
         .await?;
 
         last_nums_packages.extend(base_packages);
-        
+
         // Remove duplicates by package_hash
         let mut seen = std::collections::HashSet::new();
         let mut dest_packages = Vec::new();
@@ -500,7 +528,8 @@ impl PackageManager {
         Ok(())
     }
 
-    pub async fn download_package_and_extract(config: &crate::config::AppConfig, 
+    pub async fn download_package_and_extract(
+        config: &crate::config::AppConfig,
         work_directory_path: &Path,
         package_hash: &str,
         blob_hash: &str,
@@ -508,13 +537,13 @@ impl PackageManager {
         if DataCenterManager::validate_store(config, package_hash).await {
             return DataCenterManager::get_package_info(config, package_hash);
         }
-        let download_url = get_blob_download_url(blob_hash);
+        let download_url = get_blob_download_url(&config.download_url, blob_hash);
         let blob_path = work_directory_path.join(blob_hash);
         create_file_from_request(&download_url, &blob_path).await?;
-        
+
         let extract_path = work_directory_path.join("current");
         unzip_file(&blob_path, &extract_path).await?;
-        
+
         DataCenterManager::store_package(config, &extract_path.to_string_lossy(), true).await
     }
 
@@ -536,7 +565,14 @@ impl PackageManager {
         let work_directory_path = tmp_dir.join(format!("codepush_{}", rand_token(32)));
         create_empty_folder(&work_directory_path).await?;
 
-        let origin_data_center = match Self::download_package_and_extract(config, &work_directory_path, package_hash, blob_url).await {
+        let origin_data_center = match Self::download_package_and_extract(
+            config,
+            &work_directory_path,
+            package_hash,
+            blob_url,
+        )
+        .await
+        {
             Ok(data) => data,
             Err(e) => {
                 tracing::error!("Failed to download and extract original package: {:?}", e);
@@ -548,14 +584,19 @@ impl PackageManager {
         for v in dest_packages {
             let diff_package_hash = v.package_hash.as_str();
             let diff_manifest_blob_url = v.manifest_blob_url.as_str();
-            
+
             let diff_work_directory_path = work_directory_path.join(diff_package_hash);
             if let Err(e) = create_empty_folder(&diff_work_directory_path).await {
-                tracing::error!("Failed to create diff folder for {}: {:?}", diff_package_hash, e);
+                tracing::error!(
+                    "Failed to create diff folder for {}: {:?}",
+                    diff_package_hash,
+                    e
+                );
                 continue;
             }
 
             if let Err(e) = Self::generate_one_diff_package(
+                config,
                 pool,
                 storage,
                 &diff_work_directory_path,
@@ -563,7 +604,9 @@ impl PackageManager {
                 &origin_data_center,
                 diff_package_hash,
                 diff_manifest_blob_url,
-            ).await {
+            )
+            .await
+            {
                 tracing::error!("Failed to generate diff for {}: {:?}", diff_package_hash, e);
             }
         }
@@ -572,28 +615,28 @@ impl PackageManager {
         Ok(())
     }
 
-
     pub async fn modify_release_package(
         pool: &SqlitePool,
         package_id: i64,
         params: ReleaseParams,
     ) -> Result<Packages, AppError> {
-        let package_info = sqlx::query_as::<_, Packages>(
-            "SELECT * FROM packages WHERE id = ?"
-        )
-        .bind(package_id)
-        .fetch_optional(pool)
-        .await?
-        .ok_or_else(|| AppError::new("packageInfo not found"))?;
+        let package_info = sqlx::query_as::<_, Packages>("SELECT * FROM packages WHERE id = ?")
+            .bind(package_id)
+            .fetch_optional(pool)
+            .await?
+            .ok_or_else(|| AppError::new("packageInfo not found"))?;
 
         if let Some(app_version) = &params.app_version {
             let (is_valid, min_version, max_version) = validator_version(app_version);
             if !is_valid {
-                return Err(AppError::new(&format!("--targetBinaryVersion {} not support.", app_version)));
+                return Err(AppError::new(&format!(
+                    "--targetBinaryVersion {} not support.",
+                    app_version
+                )));
             }
 
             let v1 = sqlx::query_as::<_, DeploymentVersion>(
-                "SELECT * FROM deployments_versions WHERE deployment_id = ? AND app_version = ?"
+                "SELECT * FROM deployments_versions WHERE deployment_id = ? AND app_version = ?",
             )
             .bind(package_info.deployment_id)
             .bind(app_version)
@@ -601,17 +644,17 @@ impl PackageManager {
             .await?;
 
             let v2 = sqlx::query_as::<_, DeploymentVersion>(
-                "SELECT * FROM deployments_versions WHERE id = ?"
+                "SELECT * FROM deployments_versions WHERE id = ?",
             )
             .bind(package_info.deployment_version_id)
             .fetch_optional(pool)
             .await?
             .ok_or_else(|| AppError::new("packages not found."))?;
 
-            if let Some(v1_info) = v1 {
-                if v1_info.id != v2.id {
-                    return Err(AppError::new(&format!("{} already exist.", app_version)));
-                }
+            if let Some(v1_info) = v1
+                && v1_info.id != v2.id
+            {
+                return Err(AppError::new(&format!("{} already exist.", app_version)));
             }
 
             sqlx::query(
@@ -639,17 +682,25 @@ impl PackageManager {
         }
         if let Some(is_mandatory) = params.is_mandatory {
             query.push_str("is_mandatory = ?, ");
-            bindings_i64.push(if is_mandatory { IS_MANDATORY_YES } else { IS_MANDATORY_NO });
+            bindings_i64.push(if is_mandatory {
+                IS_MANDATORY_YES
+            } else {
+                IS_MANDATORY_NO
+            });
         }
         if let Some(is_disabled) = params.is_disabled {
             query.push_str("is_disabled = ?, ");
-            bindings_i64.push(if is_disabled { IS_DISABLED_YES } else { IS_DISABLED_NO });
+            bindings_i64.push(if is_disabled {
+                IS_DISABLED_YES
+            } else {
+                IS_DISABLED_NO
+            });
         }
 
         if query.ends_with(", ") {
             query.truncate(query.len() - 2);
             query.push_str(" WHERE id = ?");
-            
+
             let mut q = sqlx::query(&query);
             for b in bindings_str {
                 q = q.bind(b);
@@ -661,12 +712,10 @@ impl PackageManager {
             q.execute(pool).await?;
         }
 
-        let updated_package = sqlx::query_as::<_, Packages>(
-            "SELECT * FROM packages WHERE id = ?"
-        )
-        .bind(package_id)
-        .fetch_one(pool)
-        .await?;
+        let updated_package = sqlx::query_as::<_, Packages>("SELECT * FROM packages WHERE id = ?")
+            .bind(package_id)
+            .fetch_one(pool)
+            .await?;
 
         Ok(updated_package)
     }
@@ -680,7 +729,7 @@ impl PackageManager {
     ) -> Result<Packages, AppError> {
         let (source_pack, deployments_version) = if let Some(label) = &params.label {
             let source_pack = sqlx::query_as::<_, Packages>(
-                "SELECT * FROM packages WHERE deployment_id = ? AND label = ?"
+                "SELECT * FROM packages WHERE deployment_id = ? AND label = ?",
             )
             .bind(source_deployment_info.id)
             .bind(label)
@@ -689,7 +738,7 @@ impl PackageManager {
             .ok_or_else(|| AppError::new("label does not exist."))?;
 
             let deployments_version = sqlx::query_as::<_, DeploymentVersion>(
-                "SELECT * FROM deployments_versions WHERE id = ?"
+                "SELECT * FROM deployments_versions WHERE id = ?",
             )
             .bind(source_pack.deployment_version_id)
             .fetch_optional(pool)
@@ -704,28 +753,29 @@ impl PackageManager {
             }
 
             let deployments_version = sqlx::query_as::<_, DeploymentVersion>(
-                "SELECT * FROM deployments_versions WHERE id = ?"
+                "SELECT * FROM deployments_versions WHERE id = ?",
             )
             .bind(last_deployment_version_id)
             .fetch_optional(pool)
             .await?
             .ok_or_else(|| AppError::new("deploymentsVersions does not exist."))?;
 
-            let source_pack = sqlx::query_as::<_, Packages>(
-                "SELECT * FROM packages WHERE id = ?"
-            )
-            .bind(deployments_version.current_package_id)
-            .fetch_optional(pool)
-            .await?
-            .ok_or_else(|| AppError::new("packageInfo not found."))?;
+            let source_pack = sqlx::query_as::<_, Packages>("SELECT * FROM packages WHERE id = ?")
+                .bind(deployments_version.current_package_id)
+                .fetch_optional(pool)
+                .await?
+                .ok_or_else(|| AppError::new("packageInfo not found."))?;
 
             (source_pack, deployments_version)
         };
 
-        let app_final_version = params.app_version.clone().unwrap_or(deployments_version.app_version.clone());
+        let app_final_version = params
+            .app_version
+            .clone()
+            .unwrap_or(deployments_version.app_version.clone());
 
         let dest_deployments_version = sqlx::query_as::<_, DeploymentVersion>(
-            "SELECT * FROM deployments_versions WHERE deployment_id = ? AND app_version = ?"
+            "SELECT * FROM deployments_versions WHERE deployment_id = ? AND app_version = ?",
         )
         .bind(dest_deployment_info.id)
         .bind(&app_final_version)
@@ -733,25 +783,44 @@ impl PackageManager {
         .await?;
 
         if let Some(dest_dv) = dest_deployments_version {
-            let is_match = Self::is_match_package_hash(pool, dest_dv.current_package_id, source_pack.package_hash.as_str()).await?;
+            let is_match = Self::is_match_package_hash(
+                pool,
+                dest_dv.current_package_id,
+                source_pack.package_hash.as_str(),
+            )
+            .await?;
             if is_match {
-                return Err(AppError::new("The uploaded package is identical to the contents of the specified deployment's current release."));
+                return Err(AppError::new(
+                    "The uploaded package is identical to the contents of the specified deployment's current release.",
+                ));
             }
         }
 
         let (is_valid, min_version, max_version) = validator_version(&app_final_version);
         if !is_valid {
-            return Err(AppError::new(&format!("targetBinaryVersion {} not support.", app_final_version)));
+            return Err(AppError::new(&format!(
+                "targetBinaryVersion {} not support.",
+                app_final_version
+            )));
         }
 
         let create_params = CreatePackageParams {
             release_method: RELEASE_METHOD_PROMOTE,
             release_uid: promote_uid,
-            is_mandatory: params.is_mandatory.unwrap_or(source_pack.is_mandatory == IS_MANDATORY_YES) as i64,
-            is_disabled: params.is_disabled.unwrap_or(source_pack.is_disabled == IS_DISABLED_YES) as i64,
+            is_mandatory: params
+                .is_mandatory
+                .unwrap_or(source_pack.is_mandatory == IS_MANDATORY_YES)
+                as i64,
+            is_disabled: params
+                .is_disabled
+                .unwrap_or(source_pack.is_disabled == IS_DISABLED_YES)
+                as i64,
             rollout: params.rollout.unwrap_or(100),
             size: source_pack.size,
-            description: params.description.as_deref().unwrap_or(source_pack.description.as_str()),
+            description: params
+                .description
+                .as_deref()
+                .unwrap_or(source_pack.description.as_str()),
             original_label: source_pack.label.as_str(),
             original_deployment: &source_deployment_info.name,
         };
@@ -764,7 +833,8 @@ impl PackageManager {
             source_pack.manifest_blob_url.as_str(),
             source_pack.blob_url.as_str(),
             create_params,
-        ).await
+        )
+        .await
     }
 
     pub async fn rollback_package(
@@ -774,23 +844,22 @@ impl PackageManager {
         rollback_uid: i64,
     ) -> Result<Packages, AppError> {
         let deployments_version = sqlx::query_as::<_, DeploymentVersion>(
-            "SELECT * FROM deployments_versions WHERE id = ?"
+            "SELECT * FROM deployments_versions WHERE id = ?",
         )
         .bind(deployment_version_id)
         .fetch_optional(pool)
         .await?
         .ok_or_else(|| AppError::new("does not find the deploymentsVersions"))?;
 
-        let current_package_info = sqlx::query_as::<_, Packages>(
-            "SELECT * FROM packages WHERE id = ?"
-        )
-        .bind(deployments_version.current_package_id)
-        .fetch_optional(pool)
-        .await?;
+        let current_package_info =
+            sqlx::query_as::<_, Packages>("SELECT * FROM packages WHERE id = ?")
+                .bind(deployments_version.current_package_id)
+                .fetch_optional(pool)
+                .await?;
 
         let rollback_package_infos = if let Some(label) = target_label {
             sqlx::query_as::<_, Packages>(
-                "SELECT * FROM packages WHERE deployment_version_id = ? AND label = ? LIMIT 1"
+                "SELECT * FROM packages WHERE deployment_version_id = ? AND label = ? LIMIT 1",
             )
             .bind(deployment_version_id)
             .bind(label)
@@ -800,7 +869,8 @@ impl PackageManager {
             Self::get_can_rollback_packages(pool, deployment_version_id).await?
         };
 
-        let current_package_info = current_package_info.ok_or_else(|| AppError::new("no current package info"))?;
+        let current_package_info =
+            current_package_info.ok_or_else(|| AppError::new("no current package info"))?;
 
         let mut target_rollback = None;
         if !rollback_package_infos.is_empty() {
@@ -812,7 +882,8 @@ impl PackageManager {
             }
         }
 
-        let rollback_package = target_rollback.ok_or_else(|| AppError::new("no package can be rolled back."))?;
+        let rollback_package =
+            target_rollback.ok_or_else(|| AppError::new("no package can be rolled back."))?;
 
         let create_params = CreatePackageParams {
             release_method: "Rollback",
@@ -834,7 +905,8 @@ impl PackageManager {
             rollback_package.manifest_blob_url.as_str(),
             rollback_package.blob_url.as_str(),
             create_params,
-        ).await
+        )
+        .await
     }
 
     pub async fn get_can_rollback_packages(
@@ -859,7 +931,7 @@ impl PackageManager {
         label: &str,
     ) -> Result<(), AppError> {
         let package_info = sqlx::query_as::<_, Packages>(
-            "SELECT * FROM packages WHERE deployment_id = ? AND label = ?"
+            "SELECT * FROM packages WHERE deployment_id = ? AND label = ?",
         )
         .bind(deployment_id)
         .bind(label)

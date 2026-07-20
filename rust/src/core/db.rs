@@ -1,9 +1,9 @@
-use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
 use crate::config::AppConfig;
 use crate::utils::security::{password_hash_sync, rand_token};
-use std::sync::Arc;
+use bb8_redis::{RedisConnectionManager, bb8};
+use sqlx::{SqlitePool, sqlite::SqlitePoolOptions};
 use std::path::Path;
-use bb8_redis::{bb8, RedisConnectionManager};
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct Db {
@@ -12,14 +12,16 @@ pub struct Db {
 }
 
 impl Db {
-    pub async fn connect(config: &AppConfig) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn connect(
+        config: &AppConfig,
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         // If the database URL is a local file, ensure the parent directory exists
         if config.database_url.starts_with("sqlite://") {
             let file_path = &config.database_url[9..]; // Strip "sqlite://"
             if let Some(parent) = Path::new(file_path).parent() {
                 tokio::fs::create_dir_all(parent).await?;
             }
-            
+
             // Create the sqlite file if it doesn't exist
             if !Path::new(file_path).exists() {
                 tokio::fs::File::create(file_path).await?;
@@ -46,14 +48,24 @@ impl Db {
 
         // Redis part
         let redis_url = if let Some(pwd) = &config.redis.password {
-            format!("redis://:{}@{}:{}/{}", pwd, config.redis.host, config.redis.port, config.redis.db)
+            format!(
+                "redis://:{}@{}:{}/{}",
+                pwd, config.redis.host, config.redis.port, config.redis.db
+            )
         } else {
-            format!("redis://{}:{}/{}", config.redis.host, config.redis.port, config.redis.db)
+            format!(
+                "redis://{}:{}/{}",
+                config.redis.host, config.redis.port, config.redis.db
+            )
         };
         let manager = RedisConnectionManager::new(redis_url)?;
         let redis = bb8::Pool::builder().build(manager).await?;
-        
-        tracing::info!("Connected to Redis at {}:{}", config.redis.host, config.redis.port);
+
+        tracing::info!(
+            "Connected to Redis at {}:{}",
+            config.redis.host,
+            config.redis.port
+        );
 
         Ok(Self { pool, redis })
     }
@@ -74,7 +86,7 @@ impl Db {
                 ack_code TEXT NOT NULL DEFAULT '',
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 created_at DATETIME DEFAULT NULL
-            )"
+            )",
         )
         .execute(pool)
         .await?;
@@ -90,7 +102,7 @@ impl Db {
                 is_use_diff_text INTEGER NOT NULL DEFAULT 0,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 created_at DATETIME DEFAULT NULL
-            )"
+            )",
         )
         .execute(pool)
         .await?;
@@ -104,7 +116,7 @@ impl Db {
                 roles TEXT NOT NULL DEFAULT '',
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 created_at DATETIME DEFAULT NULL
-            )"
+            )",
         )
         .execute(pool)
         .await?;
@@ -121,7 +133,7 @@ impl Db {
                 label_id INTEGER NOT NULL DEFAULT 0,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 created_at DATETIME DEFAULT NULL
-            )"
+            )",
         )
         .execute(pool)
         .await?;
@@ -133,7 +145,7 @@ impl Db {
                 deployment_id INTEGER NOT NULL DEFAULT 0,
                 package_id INTEGER NOT NULL DEFAULT 0,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )"
+            )",
         )
         .execute(pool)
         .await?;
@@ -149,7 +161,7 @@ impl Db {
                 max_version INTEGER NOT NULL DEFAULT 0,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 created_at DATETIME DEFAULT NULL
-            )"
+            )",
         )
         .execute(pool)
         .await?;
@@ -175,7 +187,7 @@ impl Db {
                 rollout INTEGER NOT NULL DEFAULT 0,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 created_at DATETIME DEFAULT NULL
-            )"
+            )",
         )
         .execute(pool)
         .await?;
@@ -190,7 +202,7 @@ impl Db {
                 diff_size INTEGER NOT NULL DEFAULT 0,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 created_at DATETIME DEFAULT NULL
-            )"
+            )",
         )
         .execute(pool)
         .await?;
@@ -206,7 +218,7 @@ impl Db {
                 installed INTEGER NOT NULL DEFAULT 0,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 created_at DATETIME DEFAULT NULL
-            )"
+            )",
         )
         .execute(pool)
         .await?;
@@ -223,7 +235,7 @@ impl Db {
                 is_session INTEGER DEFAULT 0,
                 expires_at DATETIME DEFAULT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )"
+            )",
         )
         .execute(pool)
         .await?;
@@ -234,7 +246,7 @@ impl Db {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 type INTEGER NOT NULL DEFAULT 0,
                 version TEXT NOT NULL DEFAULT ''
-            )"
+            )",
         )
         .execute(pool)
         .await?;
@@ -249,7 +261,7 @@ impl Db {
                 previous_label TEXT NOT NULL DEFAULT '',
                 previous_deployment_key TEXT NOT NULL DEFAULT '',
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )"
+            )",
         )
         .execute(pool)
         .await?;
@@ -261,7 +273,7 @@ impl Db {
                 package_id INTEGER NOT NULL DEFAULT 0,
                 client_unique_id TEXT NOT NULL DEFAULT '',
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )"
+            )",
         )
         .execute(pool)
         .await?;
@@ -299,13 +311,14 @@ impl Db {
 
     /// Seed default data: versions row + admin account.
     /// Idempotent — skips if data already exists.
-    async fn seed_defaults(pool: &SqlitePool) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn seed_defaults(
+        pool: &SqlitePool,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // 1. Seed versions table: type=1, version='0.5.0'
-        let version_exists: Option<(i64,)> = sqlx::query_as(
-            "SELECT id FROM versions WHERE type = 1"
-        )
-        .fetch_optional(pool)
-        .await?;
+        let version_exists: Option<(i64,)> =
+            sqlx::query_as("SELECT id FROM versions WHERE type = 1")
+                .fetch_optional(pool)
+                .await?;
 
         if version_exists.is_none() {
             sqlx::query("INSERT INTO versions (type, version) VALUES (1, '0.5.0')")
@@ -315,11 +328,10 @@ impl Db {
         }
 
         // 2. Seed default admin account
-        let admin_exists: Option<(i64,)> = sqlx::query_as(
-            "SELECT id FROM users WHERE username = 'admin'"
-        )
-        .fetch_optional(pool)
-        .await?;
+        let admin_exists: Option<(i64,)> =
+            sqlx::query_as("SELECT id FROM users WHERE username = 'admin'")
+                .fetch_optional(pool)
+                .await?;
 
         if admin_exists.is_none() {
             tracing::info!("Creating default admin account...");
