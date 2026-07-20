@@ -1,5 +1,4 @@
-const { app } = require('../../../bin/app');
-const request = require('supertest')(app);
+const request = require('supertest')(process.env.TEST_URL || 'http://localhost:3000');
 const should = require('should');
 const _ = require('lodash');
 

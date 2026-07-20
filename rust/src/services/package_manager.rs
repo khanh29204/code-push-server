@@ -13,7 +13,7 @@ use crate::utils::common::{
 use crate::utils::qetag::calc_qetag;
 use crate::utils::security::{rand_token, upload_package_type};
 use crate::utils::storage::StorageManager;
-// use crate::services::datacenter_manager::DataCenterManager; // wait for subagent to create this
+use crate::services::datacenter_manager::{DataCenterManager, PackageInfo};
 use serde::{Deserialize, Serialize};
 use sqlx::{Row, SqlitePool};
 use std::collections::BTreeMap;
@@ -300,7 +300,7 @@ impl PackageManager {
         Ok(file_name.to_path_buf())
     }
 
-    pub async fn release_package(
+    pub async fn release_package(config: &crate::config::AppConfig, 
         pool: &SqlitePool,
         storage: &StorageManager,
         app_id: i64,
@@ -315,7 +315,7 @@ impl PackageManager {
             return Err(AppError::General(format!("targetBinaryVersion {} not support.", app_version)));
         }
 
-        let tmp_dir = std::env::temp_dir();
+        let tmp_dir = std::path::Path::new(&config.data_dir);
         let directory_path_parent = tmp_dir.join(format!("codepush_{}", rand_token(32)));
         let directory_path = directory_path_parent.join("current");
 
@@ -334,15 +334,9 @@ impl PackageManager {
             return Err(AppError::General("it must be publish it by ios type".into()));
         }
 
-        // We will call DataCenterManager here. Since it's not ready, we will mock the behavior.
-        // let data_center = DataCenterManager::store_package(&directory_path, false).await?;
-        // For now, we'll inline a minimal version of what store_package would do:
-        let manifest_file_path = directory_path_parent.join("manifest.json");
-        let all_files_hash = crate::utils::security::calc_all_file_sha256(&directory_path).await?;
-        let package_hash = crate::utils::security::package_hash_sync(&all_files_hash);
-        
-        let manifest_data = serde_json::to_string(&all_files_hash).unwrap();
-        fs::write(&manifest_file_path, manifest_data).await?;
+        let data_center = DataCenterManager::store_package(config, &directory_path.to_string_lossy(), false).await?;
+        let package_hash = data_center.package_hash.clone();
+        let manifest_file_path = std::path::PathBuf::from(data_center.manifest_file_path);
 
         let dv = sqlx::query_as::<_, DeploymentVersion>(
             "SELECT * FROM deployments_versions WHERE deployment_id = ? AND app_version = ?"
@@ -401,7 +395,6 @@ impl PackageManager {
         work_directory_path: &Path,
         package_id: i64,
         origin_data_center: &crate::services::datacenter_manager::PackageInfo,
-        old_package_data_center: &crate::services::datacenter_manager::PackageInfo,
         diff_package_hash: &str,
         diff_manifest_blob_hash: &str,
     ) -> Result<Option<PackagesDiff>, AppError> {
@@ -465,7 +458,7 @@ impl PackageManager {
         Ok(Some(diff))
     }
 
-    pub async fn create_diff_packages_by_last_nums(
+    pub async fn create_diff_packages_by_last_nums(config: &crate::config::AppConfig, 
         pool: &SqlitePool,
         storage: &StorageManager,
         app_id: i64,
@@ -503,11 +496,30 @@ impl PackageManager {
             }
         }
 
-        Self::create_diff_packages(pool, storage, original_package, dest_packages).await?;
+        Self::create_diff_packages(config, pool, storage, original_package, dest_packages).await?;
         Ok(())
     }
 
+    pub async fn download_package_and_extract(config: &crate::config::AppConfig, 
+        work_directory_path: &Path,
+        package_hash: &str,
+        blob_hash: &str,
+    ) -> Result<PackageInfo, AppError> {
+        if DataCenterManager::validate_store(config, package_hash).await {
+            return DataCenterManager::get_package_info(config, package_hash);
+        }
+        let download_url = get_blob_download_url(blob_hash);
+        let blob_path = work_directory_path.join(blob_hash);
+        create_file_from_request(&download_url, &blob_path).await?;
+        
+        let extract_path = work_directory_path.join("current");
+        unzip_file(&blob_path, &extract_path).await?;
+        
+        DataCenterManager::store_package(config, &extract_path.to_string_lossy(), true).await
+    }
+
     pub async fn create_diff_packages(
+        config: &crate::config::AppConfig,
         pool: &SqlitePool,
         storage: &StorageManager,
         original_package: &Packages,
@@ -520,28 +532,46 @@ impl PackageManager {
         let package_hash = original_package.package_hash.as_str();
         let blob_url = original_package.blob_url.as_str();
 
-        let tmp_dir = std::env::temp_dir();
+        let tmp_dir = std::path::Path::new(&config.data_dir);
         let work_directory_path = tmp_dir.join(format!("codepush_{}", rand_token(32)));
         create_empty_folder(&work_directory_path).await?;
 
-        let origin_data_center = crate::services::datacenter_manager::DataCenterManager::store_package(&work_directory_path.to_string_lossy(), false).await?; // This is a mock, wait, download_package_and_extract in JS does it
+        let origin_data_center = match Self::download_package_and_extract(config, &work_directory_path, package_hash, blob_url).await {
+            Ok(data) => data,
+            Err(e) => {
+                tracing::error!("Failed to download and extract original package: {:?}", e);
+                let _ = delete_folder(&work_directory_path).await;
+                return Err(e);
+            }
+        };
 
         for v in dest_packages {
             let diff_package_hash = v.package_hash.as_str();
-            let diff_blob_url = v.blob_url.as_str();
             let diff_manifest_blob_url = v.manifest_blob_url.as_str();
             
             let diff_work_directory_path = work_directory_path.join(diff_package_hash);
-            create_empty_folder(&diff_work_directory_path).await?;
-            
-            // let old_package_data_center = download_package_and_extract(...)
-            // We skip actual extraction for brevity in mock, just call generate
-            // Self::generate_one_diff_package(...)
+            if let Err(e) = create_empty_folder(&diff_work_directory_path).await {
+                tracing::error!("Failed to create diff folder for {}: {:?}", diff_package_hash, e);
+                continue;
+            }
+
+            if let Err(e) = Self::generate_one_diff_package(
+                pool,
+                storage,
+                &diff_work_directory_path,
+                original_package.id,
+                &origin_data_center,
+                diff_package_hash,
+                diff_manifest_blob_url,
+            ).await {
+                tracing::error!("Failed to generate diff for {}: {:?}", diff_package_hash, e);
+            }
         }
 
         let _ = delete_folder(&work_directory_path).await;
         Ok(())
     }
+
 
     pub async fn modify_release_package(
         pool: &SqlitePool,

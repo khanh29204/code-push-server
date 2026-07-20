@@ -18,6 +18,7 @@ pub fn router() -> Router<AppState> {
         .route("/reportStatus/download", post(report_status_download))
         .route("/reportStatus/deploy", post(report_status_deploy))
         .route("/storage/audit", get(storage_audit))
+        .route("/config", get(get_config))
 }
 
 async fn index() -> Html<String> {
@@ -30,6 +31,18 @@ async fn tokens() -> Html<String> {
 
 async fn authenticated(_user: crate::routes::middleware::AuthUser) -> Json<serde_json::Value> {
     Json(serde_json::json!({ "authenticated": true }))
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigResponse {
+    pub allow_registration: bool,
+}
+
+async fn get_config(State(state): State<AppState>) -> Json<ConfigResponse> {
+    Json(ConfigResponse {
+        allow_registration: state.config.allow_registration,
+    })
 }
 
 #[derive(Deserialize)]
@@ -70,8 +83,7 @@ async fn update_check(
     Query(query): Query<UpdateCheckQuery>,
 ) -> Result<Json<UpdateCheckResponse>, crate::core::app_error::AppError> {
     let rs = ClientManager::update_check(
-        &state.db.pool,
-        &state.db.redis,
+        &state,
         &query.deployment_key,
         &query.app_version,
         query.label.as_deref().unwrap_or(""),

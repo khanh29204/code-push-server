@@ -28,7 +28,7 @@ pub enum AppError {
     #[error(transparent)]
     ZipError(#[from] zip::result::ZipError),
     #[error(transparent)]
-    BoxDynError(#[from] Box<dyn std::error::Error>),
+    BoxDynError(#[from] Box<dyn std::error::Error + Send + Sync>),
     #[error(transparent)]
     SerdeJson(#[from] serde_json::Error),
 }

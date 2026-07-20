@@ -166,4 +166,62 @@ impl DeploymentsManager {
 
         Ok(())
     }
+
+    pub async fn format_package(pool: &SqlitePool, package: &Packages) -> Result<serde_json::Value, AppError> {
+        let dv = sqlx::query_as::<_, crate::models::deployments_versions::DeploymentVersion>(
+            "SELECT * FROM deployments_versions WHERE id = ?"
+        )
+        .bind(package.deployment_version_id)
+        .fetch_optional(pool)
+        .await?;
+
+        let user = sqlx::query_as::<_, crate::models::users::User>(
+            "SELECT * FROM users WHERE id = ?"
+        )
+        .bind(package.released_by)
+        .fetch_optional(pool)
+        .await?;
+
+        let diff_packages = sqlx::query_as::<_, crate::models::packages_diff::PackagesDiff>(
+            "SELECT * FROM packages_diff WHERE package_id = ?"
+        )
+        .bind(package.id)
+        .fetch_all(pool)
+        .await?;
+
+        let mut diff_package_map = serde_json::Map::new();
+        for diff in diff_packages {
+            diff_package_map.insert(
+                diff.diff_against_package_hash,
+                serde_json::json!({
+                    "size": diff.diff_size,
+                    "url": crate::utils::common::get_blob_download_url(&diff.diff_blob_url)
+                })
+            );
+        }
+
+        let app_version = dv.map(|v| v.app_version).unwrap_or_default();
+        let email = user.map(|u| u.email).unwrap_or_default();
+
+        let updated_at = package.updated_at.map(|d| d.and_utc().timestamp_millis()).unwrap_or(0);
+
+        Ok(serde_json::json!({
+            "description": package.description,
+            "isDisabled": package.is_disabled == 1,
+            "isMandatory": package.is_mandatory == 1,
+            "rollout": package.rollout,
+            "appVersion": app_version,
+            "packageHash": package.package_hash,
+            "blobUrl": crate::utils::common::get_blob_download_url(&package.blob_url),
+            "size": package.size,
+            "manifestBlobUrl": crate::utils::common::get_blob_download_url(&package.manifest_blob_url),
+            "diffPackageMap": diff_package_map,
+            "releaseMethod": package.release_method,
+            "uploadTime": updated_at,
+            "originalLabel": package.original_label,
+            "originalDeployment": package.original_deployment,
+            "label": package.label,
+            "releasedBy": email,
+        }))
+    }
 }

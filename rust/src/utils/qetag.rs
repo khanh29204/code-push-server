@@ -6,7 +6,7 @@ use tokio::io::{AsyncReadExt, BufReader};
 
 const BLOCK_SIZE: usize = 4 * 1024 * 1024; // 4MB
 
-pub async fn calc_qetag<P: AsRef<Path>>(file_path: P) -> Result<String, Box<dyn std::error::Error>> {
+pub async fn calc_qetag<P: AsRef<Path>>(file_path: P) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let file = File::open(file_path).await?;
     let mut reader = BufReader::with_capacity(BLOCK_SIZE, file);
     let mut sha1_blocks = Vec::new();

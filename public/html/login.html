@@ -1,4 +1,4 @@
-<!DOCTYPE html><html><head><title>CodePush Server</title><meta name="keywords" content="code-push-server,code-push,react-native,cordova"><meta name="description" content="CodePush service is hotupdate services which adapter react-native-code-push and cordova-plugin-code-push"><link rel="stylesheet" href="/js/bootstrap-3.3.7/css/bootstrap.min.css"><link rel="stylesheet" href="/stylesheets/common.css"><link rel="stylesheet" href="/stylesheets/signin.css"></head><body><div class="container"><form class="form-signin" id="form" method="post"><h2 class="form-signin-heading">Please sign in</h2><label class="sr-only" for="inputEmail">email address／username</label><input class="form-control" id="inputEmail" type="text" name="account" placeholder="email address／username" required autofocus><label class="sr-only" for="inputPassword">password</label><input class="form-control" id="inputPassword" type="password" name="password" placeholder="password" required><a class="btn btn-lg btn-primary btn-block" id="submitBtn">Log in</a></form></div></body><script src="/js/jquery-3.1.1.min.js"></script><script src="/js/bootstrap-3.3.7/js/bootstrap.min.js"></script><script>function getAccessToken() {
+<!DOCTYPE html><html><head><title>CodePush Server</title><meta name="keywords" content="code-push-server,code-push,react-native,cordova"><meta name="description" content="CodePush service is hotupdate services which adapter react-native-code-push and cordova-plugin-code-push"><link rel="stylesheet" href="/js/bootstrap-3.3.7/css/bootstrap.min.css"><link rel="stylesheet" href="/stylesheets/common.css"><link rel="stylesheet" href="/stylesheets/signin.css"></head><body><div class="container"><form class="form-signin" id="form" method="post"><h2 class="form-signin-heading" data-i18n="Please sign in">Please sign in</h2><label class="sr-only" for="inputEmail">email address／username</label><input class="form-control" id="inputEmail" type="text" name="account" placeholder="email address／username" required autofocus><label class="sr-only" for="inputPassword" data-i18n="password">password</label><input class="form-control" id="inputPassword" type="password" name="password" placeholder="password" required><a class="btn btn-lg btn-primary btn-block" id="submitBtn" data-i18n="Log in">Log in</a><a class="btn btn-lg btn-primary btn-block" id="registerBtn" href="/auth/register" style="display: none; margin-top: 10px;" data-i18n="Register">Register</a></form></div></body><script src="/js/jquery-3.1.1.min.js"></script><script src="/js/bootstrap-3.3.7/js/bootstrap.min.js"></script><script>function getAccessToken() {
     return localStorage.getItem('auth');
 }
 function ensureLogin() {
@@ -55,4 +55,34 @@ $('#submitBtn').on('click', function () {
       }
     }
   });
-});</script></html>
+});
+
+fetch('/config').then(r => r.json()).then(config => {
+  if (config.allowRegistration) {
+    document.getElementById('registerBtn').style.display = 'block';
+  }
+});
+
+const dicts = {
+  'zh': {
+    "Please sign in": "请登录",
+    "email address": "邮箱地址",
+    "username": "用户名",
+    "password": "密码",
+    "Log in": "登录",
+    "Register": "注册"
+  }
+};
+const lang = navigator.language || navigator.userLanguage;
+if (lang && lang.startsWith('zh')) {
+  const d = dicts['zh'];
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (d[key]) {
+      el.innerText = d[key];
+    }
+  });
+  document.getElementById('inputEmail').placeholder = d['email address'] + '／' + d['username'];
+  document.getElementById('inputPassword').placeholder = d['password'];
+}
+</script></html>

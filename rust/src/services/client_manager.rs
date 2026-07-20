@@ -73,15 +73,32 @@ impl ClientManager {
         Ok((description, has_mandatory > 0))
     }
 
+    pub async fn clear_update_check_cache(
+        redis: &bb8_redis::bb8::Pool<bb8_redis::RedisConnectionManager>,
+        deployment_key: &str,
+    ) {
+        let cache_key = format!("UPDATE_CHECK:{}:*", deployment_key);
+        if let Ok(mut conn) = redis.get().await {
+            use bb8_redis::redis::AsyncCommands;
+            if let Ok(keys) = conn.keys::<_, Vec<String>>(&cache_key).await {
+                for key in keys {
+                    let _: () = conn.del(key).await.unwrap_or(());
+                }
+            }
+        }
+    }
+
     pub async fn update_check(
-        pool: &SqlitePool,
-        redis: &bb8::Pool<RedisConnectionManager>,
+        state: &crate::core::db::AppState,
         deployment_key: &str,
         app_version: &str,
         label: &str,
         package_hash: &str,
         _client_unique_id: &str,
     ) -> Result<Option<UpdateCheckInfo>, AppError> {
+        let pool = &state.db.pool;
+        let redis = &state.db.redis;
+        let use_cache = state.config.update_check_cache;
         if deployment_key.is_empty() || app_version.is_empty() {
             return Err(AppError::new("please input deploymentKey and appVersion"));
         }
@@ -89,13 +106,15 @@ impl ClientManager {
         let cache_key = format!("UPDATE_CHECK:{}:{}:{}:{}", deployment_key, app_version, label, package_hash);
         let mut conn = redis.get().await.map_err(|e| AppError::new(&format!("Redis error: {}", e)))?;
         
-        let cached_data: Option<String> = conn.get(&cache_key).await.unwrap_or(None);
-        if let Some(data) = cached_data {
-            if data == "null" {
-                return Ok(None);
-            }
-            if let Ok(info) = serde_json::from_str::<UpdateCheckInfo>(&data) {
-                return Ok(Some(info));
+        if use_cache {
+            let cached_data: Option<String> = bb8_redis::redis::AsyncCommands::get(&mut *conn, &cache_key).await.unwrap_or(None);
+            if let Some(data) = cached_data {
+                if data == "null" {
+                    return Ok(None);
+                }
+                if let Ok(info) = serde_json::from_str::<UpdateCheckInfo>(&data) {
+                    return Ok(Some(info));
+                }
             }
         }
 
@@ -227,13 +246,17 @@ impl ClientManager {
             }
 
             if let Ok(json) = serde_json::to_string(&rs) {
-                let _: () = conn.set_ex(&cache_key, json, 600).await.unwrap_or(());
+                if use_cache {
+                    let _: () = bb8_redis::redis::AsyncCommands::set_ex(&mut *conn, &cache_key, json, 600).await.unwrap_or(());
+                }
             }
 
             return Ok(Some(rs));
         }
 
-        let _: () = conn.set_ex(&cache_key, "null", 600).await.unwrap_or(());
+        if use_cache {
+            let _: () = bb8_redis::redis::AsyncCommands::set_ex(&mut *conn, &cache_key, "null", 600).await.unwrap_or(());
+        }
         Ok(None)
     }
 

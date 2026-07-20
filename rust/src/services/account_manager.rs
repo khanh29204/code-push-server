@@ -174,7 +174,7 @@ impl AccountManager {
         let redis_key = format!("{}{}", REGISTER_CODE, key);
         let _: () = redis.set_ex(&redis_key, &token, EXPIRED).await.unwrap_or(());
         
-        EmailManager::send_register_code_mail(email, &token).await?;
+        EmailManager::send_register_code_mail(&state.config, email, &token).await?;
         Ok(())
     }
 

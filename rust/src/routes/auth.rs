@@ -35,8 +35,15 @@ async fn link_redirect() -> Redirect {
     Redirect::to("/auth/login")
 }
 
-async fn register_page(Query(_query): Query<EmailQuery>) -> Html<String> {
-    Html(std::fs::read_to_string("../public/html/register.html").unwrap_or_else(|_| "".into()))
+async fn register_page(
+    State(state): State<AppState>,
+    Query(_query): Query<EmailQuery>,
+) -> axum::response::Response {
+    if state.config.allow_registration {
+        Html(std::fs::read_to_string("../public/html/register.html").unwrap_or_else(|_| "".into())).into_response()
+    } else {
+        Redirect::to("/auth/login").into_response()
+    }
 }
 
 async fn confirm_page(Query(_query): Query<EmailQuery>) -> Html<String> {

@@ -35,3 +35,4 @@ bb8-redis = "0.26.0"
 redis = "1.4.1"
 tower-http = { version = "0.7.0", features = ["fs", "normalize-path"] }
 tower = "0.5.3"
+lettre = { version = "0.11.22", default-features = false, features = ["tokio1", "tokio1-native-tls", "smtp-transport", "builder", "hostname"] }

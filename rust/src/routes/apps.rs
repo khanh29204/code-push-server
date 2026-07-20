@@ -30,8 +30,7 @@ pub fn router() -> Router<AppState> {
 
 #[derive(Serialize)]
 pub struct AppsResponse {
-    // TODO: replace with proper App models
-    pub apps: Vec<serde_json::Value>,
+    pub apps: Vec<crate::services::app_manager::AppDetail>,
 }
 
 async fn list_apps(
@@ -39,21 +38,32 @@ async fn list_apps(
     State(state): State<AppState>,
 ) -> Result<Json<AppsResponse>, AppError> {
     let apps = crate::services::app_manager::AppManager::list_apps(&state.db.pool, user.id).await?;
-    let mut mapped_apps = Vec::new();
-    for app in apps {
-        mapped_apps.push(serde_json::json!({
-            "name": app.name,
-            "os": app.os,
-            "platform": app.platform,
-            "collaborators": app.collaborators,
-        }));
-    }
-    Ok(Json(AppsResponse { apps: mapped_apps }))
+    Ok(Json(AppsResponse { apps }))
 }
 
 #[derive(Serialize)]
 pub struct DeploymentsResponse {
     pub deployments: Vec<serde_json::Value>,
+}
+
+async fn format_deployment(pool: &sqlx::SqlitePool, d: &crate::models::deployments::Deployment) -> serde_json::Value {
+    let mut package_val = serde_json::Value::Null;
+    if d.last_deployment_version_id > 0 {
+        if let Ok(Some(dv)) = sqlx::query_as::<_, crate::models::deployments_versions::DeploymentVersion>("SELECT * FROM deployments_versions WHERE id = ?").bind(d.last_deployment_version_id).fetch_optional(pool).await {
+            if let Ok(Some(pkg)) = sqlx::query_as::<_, crate::models::packages::Packages>("SELECT * FROM packages WHERE id = ?").bind(dv.current_package_id).fetch_optional(pool).await {
+                if let Ok(formatted) = crate::services::deployments_manager::DeploymentsManager::format_package(pool, &pkg).await {
+                    package_val = formatted;
+                }
+            }
+        }
+    }
+    serde_json::json!({
+        "createdTime": d.created_at.map(|t| t.and_utc().timestamp_millis()).unwrap_or(0),
+        "id": d.id.to_string(),
+        "name": d.name,
+        "key": d.deployment_key,
+        "package": package_val,
+    })
 }
 
 async fn list_deployments(
@@ -69,10 +79,7 @@ async fn list_deployments(
         .await?;
     let mut mapped = Vec::new();
     for d in deployments {
-        mapped.push(serde_json::json!({
-            "name": d.name,
-            "key": d.deployment_key,
-        }));
+        mapped.push(format_deployment(&state.db.pool, &d).await);
     }
     Ok(Json(DeploymentsResponse { deployments: mapped }))
 }
@@ -91,7 +98,7 @@ async fn get_deployment(
         .await?.ok_or_else(|| AppError::NotFound(format!("App {} not found", app_name)))?;
     let dep = sqlx::query_as::<_, crate::models::deployments::Deployment>("SELECT * FROM deployments WHERE appid = ? AND name = ?")
         .bind(app.id).bind(&deployment_name).fetch_optional(&state.db.pool).await?.ok_or_else(|| AppError::NotFound("Deployment not found".into()))?;
-    Ok(Json(DeploymentResponse { deployment: serde_json::json!({ "name": dep.name, "key": dep.deployment_key }) }))
+    Ok(Json(DeploymentResponse { deployment: format_deployment(&state.db.pool, &dep).await }))
 }
 
 #[derive(Deserialize)]
@@ -108,7 +115,7 @@ async fn create_deployment(
     let app = crate::services::app_manager::AppManager::find_app_by_name(&state.db.pool, user.id, &app_name)
         .await?.ok_or_else(|| AppError::NotFound(format!("App {} not found", app_name)))?;
     let dep = crate::services::deployments_manager::DeploymentsManager::add_deployment(&state.db.pool, &payload.name, app.id, user.id).await?;
-    Ok(Json(DeploymentResponse { deployment: serde_json::json!({ "name": dep.name, "key": dep.deployment_key }) }))
+    Ok(Json(DeploymentResponse { deployment: format_deployment(&state.db.pool, &dep).await }))
 }
 
 #[derive(Serialize)]
@@ -154,7 +161,14 @@ async fn get_deployment_history(
     let dep = sqlx::query_as::<_, crate::models::deployments::Deployment>("SELECT * FROM deployments WHERE appid = ? AND name = ?")
         .bind(app.id).bind(&deployment_name).fetch_optional(&state.db.pool).await?.ok_or_else(|| AppError::NotFound("Deployment not found".into()))?;
     let packages = crate::services::deployments_manager::DeploymentsManager::get_deployment_history(&state.db.pool, dep.id, limit).await?;
-    let history = packages.into_iter().map(|p| serde_json::to_value(p).unwrap()).collect();
+    
+    let mut history = Vec::new();
+    for p in packages {
+        if let Ok(formatted) = crate::services::deployments_manager::DeploymentsManager::format_package(&state.db.pool, &p).await {
+            history.push(formatted);
+        }
+    }
+    
     Ok(Json(HistoryResponse { history }))
 }
 
@@ -215,7 +229,7 @@ async fn release_package(
     let mut package_info = crate::services::package_manager::ReleaseParams::default();
     let mut file_path = std::path::PathBuf::new();
     
-    while let Some(field) = multipart.next_field().await.unwrap_or(None) {
+    while let Some(field) = multipart.next_field().await.map_err(|e| AppError::new(&e.to_string()))? {
         let name = field.name().unwrap_or("").to_string();
         if name == "packageInfo" {
             let data = field.text().await.unwrap_or_default();
@@ -223,24 +237,34 @@ async fn release_package(
                 package_info = info;
             }
         } else if name == "package" {
-            let data = field.bytes().await.unwrap_or_default();
-            let tmp_path = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
-            tokio::fs::write(&tmp_path, data).await.unwrap();
+            let data = field.bytes().await.map_err(|e| AppError::new(&e.to_string()))?;
+            let tmp_path = std::path::Path::new(&state.config.data_dir).join(uuid::Uuid::new_v4().to_string());
+            tokio::fs::write(&tmp_path, data).await.map_err(|e| AppError::new(&e.to_string()))?;
             file_path = tmp_path;
         }
     }
     
     if file_path.exists() {
-        let package = crate::services::package_manager::PackageManager::release_package(&state.db.pool, &state.storage, app.id, dep.id, package_info, &file_path, user.id).await?;
+        let package = crate::services::package_manager::PackageManager::release_package(&state.config, &state.db.pool, &state.storage, app.id, dep.id, package_info, &file_path, user.id).await?;
         let _ = tokio::fs::remove_file(file_path).await;
 
         let pool = state.db.pool.clone();
         let storage = state.storage.clone();
         let app_id = app.id;
         let diff_nums = state.config.diff_nums;
+        let update_check_cache = state.config.update_check_cache;
+        let redis_pool = state.db.redis.clone();
+        let dep_key = dep.deployment_key.clone();
+        let config = state.config.clone();
         tokio::spawn(async move {
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-            let _ = crate::services::package_manager::PackageManager::create_diff_packages_by_last_nums(&pool, &storage, app_id, &package, diff_nums.into()).await;
+            if let Err(e) = crate::services::package_manager::PackageManager::create_diff_packages_by_last_nums(&config, &pool, &storage, app_id, &package, diff_nums.into()).await {
+                tracing::error!("Failed to create diff packages: {:?}", e);
+            }
+            if update_check_cache {
+                tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+                crate::services::client_manager::ClientManager::clear_update_check_cache(&redis_pool, &dep_key).await;
+            }
         });
     }
     Ok("{\"msg\": \"succeed\"}")
@@ -275,7 +299,17 @@ async fn modify_release_package(
     };
     
     crate::services::package_manager::PackageManager::modify_release_package(&state.db.pool, package_id, params).await?;
-    Ok("")
+    
+    if state.config.update_check_cache {
+        let redis_pool = state.db.redis.clone();
+        let dep_key = dep.deployment_key.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(2500)).await;
+            crate::services::client_manager::ClientManager::clear_update_check_cache(&redis_pool, &dep_key).await;
+        });
+    }
+
+    Ok("ok")
 }
 
 #[derive(Deserialize)]
@@ -310,12 +344,22 @@ async fn promote_package(
     let app_id = app.id;
     let diff_nums: i64 = state.config.diff_nums.into();
     let pkg_clone = package.clone();
+    let update_check_cache = state.config.update_check_cache;
+    let redis_pool = state.db.redis.clone();
+    let dep_key = dest_dep.deployment_key.clone();
+    let config = state.config.clone();
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-        let _ = crate::services::package_manager::PackageManager::create_diff_packages_by_last_nums(&pool, &storage, app_id, &pkg_clone, diff_nums.into()).await;
+        if let Err(e) = crate::services::package_manager::PackageManager::create_diff_packages_by_last_nums(&config, &pool, &storage, app_id, &pkg_clone, diff_nums.into()).await {
+            tracing::error!("Failed to create diff packages on promote: {:?}", e);
+        }
+        if update_check_cache {
+            tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+            crate::services::client_manager::ClientManager::clear_update_check_cache(&redis_pool, &dep_key).await;
+        }
     });
 
-    Ok(Json(PromoteResponse { package: serde_json::to_value(package).unwrap() }))
+    Ok(Json(PromoteResponse { package: serde_json::to_value(package).ok().unwrap_or(serde_json::Value::Null) }))
 }
 
 async fn rollback(
@@ -351,9 +395,19 @@ async fn handle_rollback(
     let pool = state.db.pool.clone();
     let storage = state.storage.clone();
     let app_id = app.id;
+    let update_check_cache = state.config.update_check_cache;
+    let redis_pool = state.db.redis.clone();
+    let dep_key = dep.deployment_key.clone();
+    let config = state.config.clone();
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-        let _ = crate::services::package_manager::PackageManager::create_diff_packages_by_last_nums(&pool, &storage, app_id, &package, 1).await;
+        if let Err(e) = crate::services::package_manager::PackageManager::create_diff_packages_by_last_nums(&config, &pool, &storage, app_id, &package, 1).await {
+            tracing::error!("Failed to create diff packages on rollback: {:?}", e);
+        }
+        if update_check_cache {
+            tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+            crate::services::client_manager::ClientManager::clear_update_check_cache(&redis_pool, &dep_key).await;
+        }
     });
     
     Ok("ok")

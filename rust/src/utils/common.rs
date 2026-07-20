@@ -62,7 +62,7 @@ pub fn validator_version(version_no: &str) -> (bool, String, String) {
     (flag, min, max)
 }
 
-pub async fn create_file_from_request<P: AsRef<Path>>(url: &str, file_path: P) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn create_file_from_request<P: AsRef<Path>>(url: &str, file_path: P) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let path = file_path.as_ref();
     if path.exists() {
         return Ok(());
@@ -105,7 +105,7 @@ pub async fn create_empty_folder<P: AsRef<Path>>(folder_path: P) -> std::io::Res
     Ok(())
 }
 
-pub async fn unzip_file<P: AsRef<Path>, Q: AsRef<Path>>(zip_file: P, output_path: Q) -> Result<String, Box<dyn std::error::Error>> {
+pub async fn unzip_file<P: AsRef<Path>, Q: AsRef<Path>>(zip_file: P, output_path: Q) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let file = std::fs::File::open(zip_file.as_ref())?;
     let mut archive = ZipArchive::new(file)?;
     

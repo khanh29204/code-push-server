@@ -18,7 +18,7 @@ impl StorageManager {
         Self { config }
     }
 
-    pub async fn upload_file(&self, key: &str, file_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn upload_file(&self, key: &str, file_path: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let base_dir = &self.config.local_storage_dir;
         
         // Similar logic to JS: subDir = key.substring(0, 2).toLowerCase()
@@ -43,7 +43,7 @@ impl StorageManager {
         Ok(())
     }
 
-    pub async fn download_file(&self, key: &str, target_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn download_file(&self, key: &str, target_path: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let base_dir = &self.config.local_storage_dir;
         let sub_dir = if key.len() >= 2 {
             key[0..2].to_lowercase()
@@ -56,7 +56,7 @@ impl StorageManager {
         Ok(())
     }
 
-    pub async fn delete_file(&self, key: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn delete_file(&self, key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let base_dir = &self.config.local_storage_dir;
         let sub_dir = if key.len() >= 2 {
             key[0..2].to_lowercase()

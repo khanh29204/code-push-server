@@ -49,8 +49,7 @@ async fn update_check(
     Query(query): Query<UpdateCheckQuery>,
 ) -> Result<Json<UpdateCheckResponse>, crate::core::app_error::AppError> {
     let rs = ClientManager::update_check(
-        &state.db.pool,
-        &state.db.redis,
+        &state,
         &query.deployment_key,
         &query.app_version,
         query.label.as_deref().unwrap_or(""),

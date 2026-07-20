@@ -19,22 +19,21 @@ pub struct PackageInfo {
 pub struct DataCenterManager;
 
 impl DataCenterManager {
-    pub fn get_data_dir() -> String {
-        // hardcoded for now, this could be configured via env
-        std::env::temp_dir().join("codepush_data").to_string_lossy().to_string()
+    pub fn get_data_dir(config: &crate::config::AppConfig) -> String {
+        config.data_dir.clone()
     }
 
-    pub fn has_package_store_sync(package_hash: &str) -> bool {
-        let data_dir = Self::get_data_dir();
+    pub fn has_package_store_sync(config: &crate::config::AppConfig, package_hash: &str) -> bool {
+        let data_dir = Self::get_data_dir(config);
         let package_hash_path = Path::new(&data_dir).join(package_hash);
         let manifest_file = package_hash_path.join(MANIFEST_FILENAME);
         let content_path = package_hash_path.join(CONTENTS_NAME);
         manifest_file.exists() && content_path.exists()
     }
 
-    pub fn get_package_info(package_hash: &str) -> Result<PackageInfo, AppError> {
-        if Self::has_package_store_sync(package_hash) {
-            let data_dir = Self::get_data_dir();
+    pub fn get_package_info(config: &crate::config::AppConfig, package_hash: &str) -> Result<PackageInfo, AppError> {
+        if Self::has_package_store_sync(config, package_hash) {
+            let data_dir = Self::get_data_dir(config);
             let package_hash_path = Path::new(&data_dir).join(package_hash);
             let manifest_file = package_hash_path.join(MANIFEST_FILENAME);
             let content_path = package_hash_path.join(CONTENTS_NAME);
@@ -63,13 +62,13 @@ impl DataCenterManager {
         }
     }
 
-    pub async fn validate_store(provide_package_hash: &str) -> bool {
-        let data_dir = Self::get_data_dir();
+    pub async fn validate_store(config: &crate::config::AppConfig, provide_package_hash: &str) -> bool {
+        let data_dir = Self::get_data_dir(config);
         let package_hash_path = Path::new(&data_dir).join(provide_package_hash);
         let manifest_file = package_hash_path.join(MANIFEST_FILENAME);
         let content_path = package_hash_path.join(CONTENTS_NAME);
         
-        if !Self::has_package_store_sync(provide_package_hash) {
+        if !Self::has_package_store_sync(config, provide_package_hash) {
             debug!("validateStore providePackageHash not exist");
             return false;
         }
@@ -105,16 +104,16 @@ impl DataCenterManager {
         false
     }
 
-    pub async fn store_package(source_dst: &str, force: bool) -> Result<PackageInfo, AppError> {
+    pub async fn store_package(config: &crate::config::AppConfig, source_dst: &str, force: bool) -> Result<PackageInfo, AppError> {
         let manifest_json = calc_all_file_sha256(source_dst).await?;
         let package_hash = package_hash_sync(&manifest_json);
         
-        let data_dir = Self::get_data_dir();
+        let data_dir = Self::get_data_dir(config);
         let package_hash_path = Path::new(&data_dir).join(&package_hash);
         let manifest_file = package_hash_path.join(MANIFEST_FILENAME);
         let content_path = package_hash_path.join(CONTENTS_NAME);
         
-        let is_validate = Self::validate_store(&package_hash).await;
+        let is_validate = Self::validate_store(config, &package_hash).await;
         
         if !force && is_validate {
             return Ok(Self::build_package_info(
@@ -139,8 +138,8 @@ impl DataCenterManager {
         ))
     }
 
-    pub fn delete_package_tmp(package_hash: &str) -> bool {
-        let data_dir = Self::get_data_dir();
+    pub fn delete_package_tmp(config: &crate::config::AppConfig, package_hash: &str) -> bool {
+        let data_dir = Self::get_data_dir(config);
         let package_hash_path = Path::new(&data_dir).join(package_hash);
         
         if package_hash_path.exists() {
@@ -159,7 +158,7 @@ impl DataCenterManager {
         false
     }
 
-    pub fn delete_package_storage(package_hash: &str) -> bool {
-        Self::delete_package_tmp(package_hash)
+    pub fn delete_package_storage(config: &crate::config::AppConfig, package_hash: &str) -> bool {
+        Self::delete_package_tmp(config, package_hash)
     }
 }
