@@ -1,5 +1,5 @@
 # Stage 1: Build the Rust application
-FROM rust:1.80-slim-bookworm AS builder
+FROM rust:1.90-slim-bookworm AS builder
 
 # Set the working directory
 WORKDIR /app
@@ -11,10 +11,10 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the Cargo files (assuming context is the project root)
-COPY rust/Cargo.toml rust/Cargo.lock ./
+COPY Cargo.toml Cargo.lock ./
 
 # Copy the source code
-COPY rust/src ./src
+COPY src ./src
 
 # Build the application in release mode
 RUN cargo build --release
@@ -24,7 +24,7 @@ FROM debian:bookworm-slim AS runner
 
 # We set WORKDIR to /app/rust so that when the server runs,
 # the path `../public` resolves to `/app/public` where we will copy the UI files.
-WORKDIR /app/rust
+WORKDIR /app
 
 # Install necessary runtime dependencies (ca-certificates for HTTPS requests)
 RUN apt-get update && apt-get install -y \
@@ -36,9 +36,6 @@ COPY --from=builder /app/target/release/rust ./code-push-server
 
 # Copy the public directory for the Web UI
 COPY public /app/public
-
-# Create data directories
-RUN mkdir -p /data
 
 # Set default environment variables
 ENV PORT=3000

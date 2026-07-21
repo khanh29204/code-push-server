@@ -1,32 +1,16 @@
-version: '3.8'
-
 services:
   server:
-    build:
-      context: ..
-      dockerfile: rust/Dockerfile
-    image: code-push-server-rust:latest
-    container_name: code-push-server-rust
-    ports:
-      - "3000:3000"
+    image: ghcr.io/khanh29204/code-push-server:latest
+    container_name: code_push_server
     volumes:
-      - ../data:/data
-      - ../data-storage:/data-storage
+      - ./data:/app/data
     env_file:
       - .env
-    environment:
-      - REDIS_HOST=redis
-      - DATABASE_URL=sqlite:///data/codepush.db
-      - STORAGE_DIR=/data-storage
-    depends_on:
-      - redis
-    restart: unless-stopped
-
-  redis:
-    image: redis:alpine
-    container_name: code-push-redis
     ports:
-      - "6379:6379"
-    volumes:
-      - ../data-redis:/data
-    restart: unless-stopped
+      - '3000:3000'
+    command: sh -c "bun bin/www.js --app-name=code-push-server"
+    networks:
+      - redis_private_net
+networks:
+  redis_private_net:
+    external: true
