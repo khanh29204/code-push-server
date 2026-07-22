@@ -1,0 +1,16 @@
+services:
+  server:
+    image: ghcr.io/khanh29204/code-push-server:latest
+    container_name: code-push-server
+    volumes:
+      - ./data:/data
+    env_file:
+      - .env
+    ports:
+      - '3000:3000'
+    command: sh -c "bun bin/www.js --app-name=code-push-server"
+    networks:
+      - redis_private_net
+networks:
+  redis_private_net:
+    external: true

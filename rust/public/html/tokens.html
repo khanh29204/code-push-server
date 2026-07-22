@@ -1,0 +1,71 @@
+<!DOCTYPE html><html><head><title>CodePush Server</title><meta name="keywords" content="code-push-server,code-push,react-native,cordova"><meta name="description" content="CodePush service is hotupdate services which adapter react-native-code-push and cordova-plugin-code-push"><link rel="stylesheet" href="/js/bootstrap-3.3.7/css/bootstrap.min.css"><link rel="stylesheet" href="/stylesheets/common.css"></head><body><h1 style="text-align: center;">CodePush Server</h1><div class="site-notice"><a class="btn btn-lg btn-primary" id="submitBtn">Obtain token</a></div><div class="form-group"><div id="tipsSuccess" style="display:none"><h2 style="text-align: center;">Authentication succeeded.</h2><h2 style="text-align: center;">Please copy and paste this access key to the command window:</h2></div></div><div class="form-group"><div class="col-sm-offset-3 col-sm-6"><input class="form-control" id="key" style="display:none" readonly></div></div><br><div class="form-group"><div id="tipsClose" style="display:none"><h2 style="text-align: center;">After doing so, please close this browser.</h2></div></div></body><script src="/js/jquery-3.1.1.min.js"></script><script src="/js/bootstrap-3.3.7/js/bootstrap.min.js"></script><script>function getAccessToken() {
+    return localStorage.getItem('auth');
+}
+function ensureLogin() {
+    if (!getAccessToken()) {
+        window.location.href = '/auth/login';
+    }
+}
+function logout() {
+    localStorage.removeItem('auth');
+    location.href = '/auth/login';
+}
+function parseQuery() {
+  query = location.search.substring(1);
+  var vars = query.split('&');
+  var rs = {};
+  for (var i = 0; i < vars.length; i++) {
+    var pair = vars[i].split('=');
+    rs[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
+  }
+  return rs;
+}</script><script>ensureLogin();
+var submit = false;
+
+$('#submitBtn').on('click', function () {
+  if (submit) {
+    return ;
+  }
+  submit = true;
+  var query = parseQuery();
+  var createdBy = query.hostname;
+  var time = (new Date()).getTime();
+  if (createdBy == null || createdBy == undefined || createdBy=="") {
+    createdBy = 'Login-' + time;
+  }
+
+  // TODO: make ttl and friendlyNamee configurable
+  var postParams = {
+    createdBy: createdBy,
+    friendlyName: "Login-" + time,
+    ttl: 60*60*24*30*1000,
+    description: "Login-" + time,
+    isSession: true
+  };
+  var accessToken = getAccessToken();
+  $.ajax({
+    type: 'post',
+    data: postParams,
+    headers: {
+      Authorization : 'Bearer ' + accessToken
+    },
+    url: '/accessKeys',
+    dataType: 'json',
+    success: function (data) {
+      submit = false;
+      $('#tipsSuccess').show();
+      $('#key').val(data.accessKey.name);
+      $('#key').show();
+      $('#tipsClose').show();
+    },
+    error: function(XMLHttpRequest, textStatus, errorThrown) {
+      submit = false;
+      if (errorThrown == 'Unauthorized') {
+        alert(`please login again!`);
+        location.href = '/auth/login'
+      }else {
+        alert(errorThrown);
+      }
+    }
+  });
+});</script></html>

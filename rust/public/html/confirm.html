@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>CodePush Server</title>
+  <meta name="keywords" content="code-push-server,code-push,react-native,cordova">
+  <meta name="description"
+    content="CodePush service is hotupdate services which adapter react-native-code-push and cordova-plugin-code-push">
+  <link rel="stylesheet" href="/js/bootstrap-3.3.7/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/stylesheets/common.css">
+  <link rel="stylesheet" href="/stylesheets/signin.css">
+</head>
+
+<body>
+  <div class="container">
+    <form class="form-signin" id="form" method="post">
+      <h2 class="form-signin-heading">Please confirm your token and create a password</h2>
+      <div class="form-group"><label class="sr-only" for="inputEmail">Email address</label><input class="form-control"
+          id="inputEmail" type="text" name="email" placeholder="Email address" required></div>
+      <div class="form-group"><label class="sr-only" for="inputToken">Token</label><input class="form-control"
+          id="inputToken" type="text" name="token" placeholder="Token" required autofocus></div>
+      <div class="form-group"><label class="sr-only" for="inputPassword">Create password</label><input
+          class="form-control" id="inputPassword" type="password" name="password" placeholder="Password" required></div>
+      <a class="btn btn-lg btn-primary btn-block" id="submitBtn">Confirm</a>
+    </form>
+    <div class="modal fade bs-example-modal-sm" id="myModal" tabindex="-1" role="dialog"
+      aria-labelledby="mySmallModalLabel">
+      <div class="modal-dialog modal-md">
+        <div class="modal-content">
+          <div class="modal-header"><button class="close" data-dismiss="modal" aria-label="Close"><span
+                aria-hidden="true">×</span></button>
+            <h4 class="modal-title" id="mySmallModalLabel">Registration complete</h4>
+          </div>
+          <div class="modal-body"> Please proceed to login.</div>
+          <div class="modal-footer"><button class="btn btn-default" type="button"
+              data-dismiss="modal">Close</button><button class="btn btn-primary" id="okBtn" type="button"
+              data-dismiss="modal">OK</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+<script src="/js/jquery-3.1.1.min.js"></script>
+<script src="/js/bootstrap-3.3.7/js/bootstrap.min.js"></script>
+<script>function getAccessToken() {
+    return localStorage.getItem('auth');
+  }
+  function ensureLogin() {
+    if (!getAccessToken()) {
+      window.location.href = '/auth/login';
+    }
+  }
+  function logout() {
+    localStorage.removeItem('auth');
+    location.href = '/auth/login';
+  }
+  function parseQuery() {
+    query = location.search.substring(1);
+    var vars = query.split('&');
+    var rs = {};
+    for (var i = 0; i < vars.length; i++) {
+      var pair = vars[i].split('=');
+      rs[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
+    }
+    return rs;
+  }</script>
+<script>$('#okBtn').on('click', function () {
+    location.href = '/auth/login?email=' + $('#inputEmail').val();
+  });
+
+  var submit = false;
+  $('#submitBtn').on('click', function () {
+    if (submit) {
+      return;
+    }
+    console.log($('#form').serializeArray());
+    submit = true;
+    $.ajax({
+      type: 'post',
+      data: $('#form').serializeArray(),
+      url: "/users/",
+      dataType: 'json',
+      success: function (data) {
+        if (data.status == "OK") {
+          myModal = $('#myModal');
+          myModal.modal('show');
+          submit = false;
+        } else {
+          alert(data.message);
+          submit = false;
+        }
+      }
+    });
+  });</script>
+
+</html>
