@@ -15,7 +15,9 @@ use axum::{Router, routing::get};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower::Layer;
+use tower_http::trace::TraceLayer;
 use tracing::info;
+use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::config::AppConfig;
 use crate::core::db::{AppState, Db};
@@ -23,8 +25,15 @@ use crate::utils::storage::StorageManager;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // Initialize tracing
-    tracing_subscriber::fmt::init();
+    // Initialize tracing. Default log level is `info`, and we enable
+    // request tracing at `info` level so incoming HTTP requests are logged.
+    // Override with the RUST_LOG env-var, e.g. RUST_LOG=debug.
+    tracing_subscriber::registry()
+        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+            EnvFilter::new("info,tower_http=info")
+        }))
+        .with(tracing_subscriber::fmt::layer())
+        .init();
 
     // Load configuration
     let config = AppConfig::load();
@@ -73,6 +82,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             tower_http::services::ServeDir::new(local_storage_dir),
         )
         .fallback_service(tower_http::services::ServeDir::new(&public_dir))
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(|request: &axum::http::Request<_>| {
+                    tracing::info_span!(
+                        "request",
+                        method = %request.method(),
+                        uri = %request.uri(),
+                    )
+                })
+                .on_response(
+                    |response: &axum::http::Response<_>,
+                     latency: std::time::Duration,
+                     _span: &tracing::Span| {
+                        tracing::info!(
+                            status = %response.status(),
+                            latency = ?latency,
+                            "response"
+                        );
+                    },
+                ),
+        )
         .with_state(state);
 
     let app = tower_http::normalize_path::NormalizePathLayer::trim_trailing_slash().layer(app);

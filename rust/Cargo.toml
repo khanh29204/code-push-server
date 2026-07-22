@@ -27,12 +27,12 @@ tokio = { version = "1.53.0", features = ["full"] }
 tokio-util = { version = "0.7.18", features = ["io"] }
 axum = { version = "0.8.1", features = ["macros", "multipart"] }
 tracing = "0.1.44"
-tracing-subscriber = "0.3.23"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 uuid = { version = "1.24.0", features = ["v4"] }
 walkdir = "2.5.0"
 zip = "8.6.0"
 bb8-redis = "0.26.0"
 redis = "1.4.1"
-tower-http = { version = "0.7.0", features = ["fs", "normalize-path"] }
+tower-http = { version = "0.7.0", features = ["fs", "normalize-path", "trace"] }
 tower = "0.5.3"
 lettre = { version = "0.11.22", default-features = false, features = ["tokio1", "tokio1-native-tls", "smtp-transport", "builder", "hostname"] }

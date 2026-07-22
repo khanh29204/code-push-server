@@ -8,9 +8,18 @@ FROM base AS builder
 WORKDIR /app
 
 COPY Cargo.toml Cargo.lock ./
+
+# Build dependencies only (cache layer)
+RUN mkdir src && echo "fn main() {}" > src/main.rs \
+    && RUSTFLAGS="-C target-feature=+crt-static" cargo build --release --target x86_64-unknown-linux-musl \
+    && rm -rf src
+
+# Copy real source và build
 COPY src ./src
 
-RUN RUSTFLAGS="-C target-feature=+crt-static" cargo build --release --target x86_64-unknown-linux-musl
+# Touch main.rs để tránh cargo dùng cache cũ của dummy binary
+RUN touch src/main.rs \
+    && RUSTFLAGS="-C target-feature=+crt-static" cargo build --release --target x86_64-unknown-linux-musl
 
 FROM scratch AS runner
 
