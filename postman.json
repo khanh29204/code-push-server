@@ -1,520 +1,1001 @@
 {
   "info": {
     "_postman_id": "77f4a880-3024-4fad-bfea-4d13910277f0",
-    "name": "CodePush Server API",
-    "description": "Collection các endpoint chính của CodePush Server",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "_exporter_id": "33705183"
+    "name": "CodePush Server API (Rust)",
+    "description": "Bộ sưu tập đầy đủ tất cả các endpoint của CodePush Server bản Rust (Auth, Account, Access Keys, Apps, Collaborators, Deployments, Releases, Client Update Check & Audit)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
     {
-      "name": "Lấy danh sách ứng dụng",
-      "request": {
-        "method": "GET",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer {{access_token}}",
-            "type": "text"
-          }
-        ],
-        "url": {
-          "raw": "{{local}}/apps",
-          "host": ["{{local}}"],
-          "path": ["apps"]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "Lấy audit",
-      "request": {
-        "method": "GET",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer {{access_token}}",
-            "type": "text"
-          }
-        ],
-        "url": {
-          "raw": "{{base_url}}/storage/audit",
-          "host": ["{{base_url}}"],
-          "path": ["storage", "audit"]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "Tạo ứng dụng mới",
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer {{access_token}}",
-            "type": "text"
-          },
-          {
-            "key": "Content-Type",
-            "value": "application/json",
-            "type": "text"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"name\": \"app_name\",\n  \"os\": \"android\",\n  \"platform\": \"react-native\"\n}"
-        },
-        "url": {
-          "raw": "{{local}}/apps",
-          "host": ["{{local}}"],
-          "path": ["apps"]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "Tạo deployment mới",
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer {{access_token}}",
-            "type": "text"
-          },
-          {
-            "key": "Content-Type",
-            "value": "application/json",
-            "type": "text"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"name\": \"Staging\"\n}"
-        },
-        "url": {
-          "raw": "{{base_url}}/apps/:appName/deployments",
-          "host": ["{{base_url}}"],
-          "path": ["apps", ":appName", "deployments"],
-          "variable": [
-            {
-              "key": "appName",
-              "value": ""
-            }
-          ]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "Lấy danh sách deployment",
-      "request": {
-        "auth": {
-          "type": "bearer",
-          "bearer": [
-            {
-              "key": "token",
-              "value": "{{access_token}}",
-              "type": "string"
-            }
-          ]
-        },
-        "method": "GET",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer {{access_token}}",
-            "type": "text"
-          }
-        ],
-        "url": {
-          "raw": "{{local}}/apps/:appName/deployments/",
-          "host": ["{{local}}"],
-          "path": ["apps", ":appName", "deployments", ""],
-          "variable": [
-            {
-              "key": "appName",
-              "value": "app_name"
-            }
-          ]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "Lấy danh sách deployment của Production",
-      "event": [
+      "name": "1. Auth & Account",
+      "item": [
         {
-          "listen": "test",
-          "script": {
-            "exec": [
-              "const data = pm.response.json().history;",
-              "if (data && data.length > 0) {",
-              "    let packageHashs = []",
-              "    for (let i = 0; i < data.length; i++) {",
-              "        packageHashs.push(data[i].packageHash);",
-              "    }",
-              "    console.log(JSON.stringify(packageHashs))",
-              "}"
-            ],
-            "type": "text/javascript",
-            "packages": {}
-          }
-        },
-        {
-          "listen": "prerequest",
-          "script": {
-            "exec": [""],
-            "type": "text/javascript",
-            "packages": {}
-          }
-        }
-      ],
-      "request": {
-        "auth": {
-          "type": "bearer",
-          "bearer": [
+          "name": "Đăng nhập (Login)",
+          "event": [
             {
-              "key": "token",
-              "value": "{{access_token}}",
-              "type": "string"
-            }
-          ]
-        },
-        "method": "GET",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer {{access_token}}",
-            "type": "text"
-          }
-        ],
-        "url": {
-          "raw": "{{local}}/apps/:appName/deployments/Production/history?limit=100",
-          "host": ["{{local}}"],
-          "path": ["apps", ":appName", "deployments", "Production", "history"],
-          "query": [
-            {
-              "key": "limit",
-              "value": "100"
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Lưu access_token\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.results && jsonData.results.tokens) {",
+                  "        pm.environment.set(\"access_token\", jsonData.results.tokens);",
+                  "        pm.collectionVariables.set(\"access_token\", jsonData.results.tokens);",
+                  "        console.log(\"access_token: \" + jsonData.results.tokens);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
             }
           ],
-          "variable": [
-            {
-              "key": "appName",
-              "value": "app_name"
-            }
-          ]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "Lấy danh sách metric của Production Copy",
-      "request": {
-        "method": "GET",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer {{access_token}}",
-            "type": "text"
-          }
-        ],
-        "url": {
-          "raw": "{{base_url}}/apps/:appName/deployments/Production/metrics",
-          "host": ["{{base_url}}"],
-          "path": ["apps", ":appName", "deployments", "Production", "metrics"],
-          "variable": [
-            {
-              "key": "appName",
-              "value": "app_name"
-            }
-          ]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "Xóa deployment",
-      "request": {
-        "method": "DELETE",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer {{access_token}}",
-            "type": "text"
-          }
-        ],
-        "url": {
-          "raw": "{{base_url}}/apps/:appName/deployments/Staging",
-          "host": ["{{base_url}}"],
-          "path": ["apps", ":appName", "deployments", "Staging"],
-          "variable": [
-            {
-              "key": "appName",
-              "value": ""
-            }
-          ]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "Lấy danh sách collaborator",
-      "request": {
-        "method": "GET",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer {{access_token}}",
-            "type": "text"
-          }
-        ],
-        "url": {
-          "raw": "{{base_url}}/apps/:appName/collaborators",
-          "host": ["{{base_url}}"],
-          "path": ["apps", ":appName", "collaborators"],
-          "variable": [
-            {
-              "key": "appName",
-              "value": "app_name"
-            }
-          ]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "Thêm collaborator",
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer {{access_token}}",
-            "type": "text"
-          },
-          {
-            "key": "Content-Type",
-            "value": "application/json",
-            "type": "text"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"email\": \"user@example.com\"\n}"
-        },
-        "url": {
-          "raw": "{{base_url}}/apps/:appName/collaborators",
-          "host": ["{{base_url}}"],
-          "path": ["apps", ":appName", "collaborators"],
-          "variable": [
-            {
-              "key": "appName",
-              "value": ""
-            }
-          ]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "Xóa collaborator",
-      "request": {
-        "method": "DELETE",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer {{access_token}}",
-            "type": "text"
-          }
-        ],
-        "url": {
-          "raw": "{{base_url}}/apps/:appName/collaborators/user@example.com",
-          "host": ["{{base_url}}"],
-          "path": ["apps", ":appName", "collaborators", "user@example.com"],
-          "variable": [
-            {
-              "key": "appName",
-              "value": ""
-            }
-          ]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "Cập nhật mô tả bản phát hành",
-      "request": {
-        "method": "PATCH",
-        "header": [],
-        "url": {
-          "raw": "{{base_url}}/apps/:appName/deployments/:deploymentName/releases/:label",
-          "host": ["{{base_url}}"],
-          "path": ["apps", ":appName", "deployments", ":deploymentName", "releases", ":label"],
-          "variable": [
-            {
-              "key": "appName",
-              "value": ""
+          "request": {
+            "auth": {
+              "type": "noauth"
             },
-            {
-              "key": "deploymentName",
-              "value": ""
-            },
-            {
-              "key": "label",
-              "value": ""
-            }
-          ]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "Rollback bản phát hành",
-      "request": {
-        "method": "POST",
-        "header": [],
-        "url": {
-          "raw": "{{base_url}}/apps/:appName/deployments/:deploymentName/rollback",
-          "host": ["{{base_url}}"],
-          "path": ["apps", ":appName", "deployments", ":deploymentName", "rollback"],
-          "variable": [
-            {
-              "key": "appName",
-              "value": "app_name"
-            },
-            {
-              "key": "deploymentName",
-              "value": "Production"
-            }
-          ]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "Xem chi tiết bản phát hành",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{base_url}}/apps/:appName/deployments/:deploymentName/releases/:label",
-          "host": ["{{base_url}}"],
-          "path": ["apps", ":appName", "deployments", ":deploymentName", "releases", ":label"],
-          "variable": [
-            {
-              "key": "appName",
-              "value": ""
-            },
-            {
-              "key": "deploymentName",
-              "value": ""
-            },
-            {
-              "key": "label",
-              "value": ""
-            }
-          ]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "Đăng nhập",
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "exec": [
-              "pm.test(\"Save token codepush\", function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.environment.set(\"access_token\", jsonData.results.tokens);",
-              "    console.log(\"access_token: \" + pm.environment.get(\"access_token\"));",
-              "});"
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "type": "text/javascript",
-            "packages": {},
-            "requests": {}
-          }
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"account\": \"admin\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            }
+          },
+          "response": []
         },
         {
-          "listen": "prerequest",
-          "script": {
-            "exec": [""],
-            "type": "text/javascript",
-            "packages": {},
-            "requests": {}
-          }
-        }
-      ],
-      "request": {
-        "auth": {
-          "type": "noauth"
-        },
-        "method": "POST",
-        "header": [],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n    \"account\": \"admin\",\n    \"password\": \"\"\n}",
-          "options": {
-            "raw": {
-              "language": "json"
+          "name": "Đăng xuất (Logout)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/logout",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "logout"]
             }
-          }
+          },
+          "response": []
         },
-        "url": {
-          "raw": "{{base_url}}/auth/login",
-          "host": ["{{base_url}}"],
-          "path": ["auth", "login"]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "Đổi mật khẩu",
-      "request": {
-        "method": "PATCH",
-        "header": [],
-        "url": {
-          "raw": "{{base_url}}/users/password",
-          "host": ["{{base_url}}"]
-        },
-        "body": {
-          "mode": "raw",
-          "raw": "{\n    \"oldPassword\": \"oldPassword\",\n    \"newPassword\": \"newPassword\"\n}",
-          "options": {
-            "raw": {
-              "language": "json"
+        {
+          "name": "Lấy thông tin tài khoản (Account Info)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/account",
+              "host": ["{{base_url}}"],
+              "path": ["account"]
             }
-          }
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "delete file package",
-      "request": {
-        "method": "DELETE",
-        "header": [],
-        "url": {
-          "raw": "{{base_url}}/apps/:appName/deployments/Production/releases/:label",
-          "host": ["{{base_url}}"],
-          "path": ["apps", ":appName", "deployments", "Production", "releases", ":label"],
-          "variable": [
-            {
-              "key": "appName",
-              "value": "app_name"
+          },
+          "response": []
+        },
+        {
+          "name": "Gửi mã đăng ký Email (Send Register Code)",
+          "request": {
+            "auth": {
+              "type": "noauth"
             },
-            {
-              "key": "label",
-              "value": "v1"
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users/registerCode",
+              "host": ["{{base_url}}"],
+              "path": ["users", "registerCode"]
             }
-          ]
+          },
+          "response": []
+        },
+        {
+          "name": "Kiểm tra mã xác thực đăng ký (Check Register Code)",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/users/registerCode/exists?email=user@example.com&token=123456",
+              "host": ["{{base_url}}"],
+              "path": ["users", "registerCode", "exists"],
+              "query": [
+                {
+                  "key": "email",
+                  "value": "user@example.com"
+                },
+                {
+                  "key": "token",
+                  "value": "123456"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Đăng ký tài khoản mới (Register User)",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"token\": \"123456\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users",
+              "host": ["{{base_url}}"],
+              "path": ["users"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Kiểm tra Email tồn tại (Check Email Exists)",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/users/exists?email=user@example.com",
+              "host": ["{{base_url}}"],
+              "path": ["users", "exists"],
+              "query": [
+                {
+                  "key": "email",
+                  "value": "user@example.com"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Đổi mật khẩu (Change Password)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"oldPassword\": \"admin123\",\n  \"newPassword\": \"newPassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users/password",
+              "host": ["{{base_url}}"],
+              "path": ["users", "password"]
+            }
+          },
+          "response": []
         }
-      },
-      "response": []
+      ]
+    },
+    {
+      "name": "2. Access Keys (CLI Tokens)",
+      "item": [
+        {
+          "name": "Lấy danh sách Access Keys",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/accessKeys",
+              "host": ["{{base_url}}"],
+              "path": ["accessKeys"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Tạo Access Key mới",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"friendlyName\": \"CI/CD Token\",\n  \"ttl\": \"2592000000\",\n  \"createdBy\": \"Postman\",\n  \"description\": \"Token tự động hóa phát hành\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/accessKeys",
+              "host": ["{{base_url}}"],
+              "path": ["accessKeys"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Xóa Access Key",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/accessKeys/:name",
+              "host": ["{{base_url}}"],
+              "path": ["accessKeys", ":name"],
+              "variable": [
+                {
+                  "key": "name",
+                  "value": "CI/CD Token"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Apps Management",
+      "item": [
+        {
+          "name": "Lấy danh sách ứng dụng",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/apps",
+              "host": ["{{base_url}}"],
+              "path": ["apps"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Tạo ứng dụng mới",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"MyApp\",\n  \"os\": \"android\",\n  \"platform\": \"react-native\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/apps",
+              "host": ["{{base_url}}"],
+              "path": ["apps"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Đổi tên ứng dụng",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"NewAppName\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/apps/:appName",
+              "host": ["{{base_url}}"],
+              "path": ["apps", ":appName"],
+              "variable": [
+                {
+                  "key": "appName",
+                  "value": "MyApp"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Xóa ứng dụng",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/apps/:appName",
+              "host": ["{{base_url}}"],
+              "path": ["apps", ":appName"],
+              "variable": [
+                {
+                  "key": "appName",
+                  "value": "MyApp"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Chuyển quyền sở hữu ứng dụng (Transfer App)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/apps/:appName/transfer/:email",
+              "host": ["{{base_url}}"],
+              "path": ["apps", ":appName", "transfer", ":email"],
+              "variable": [
+                {
+                  "key": "appName",
+                  "value": "MyApp"
+                },
+                {
+                  "key": "email",
+                  "value": "new_owner@example.com"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Collaborators",
+      "item": [
+        {
+          "name": "Lấy danh sách Collaborators",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/apps/:appName/collaborators",
+              "host": ["{{base_url}}"],
+              "path": ["apps", ":appName", "collaborators"],
+              "variable": [
+                {
+                  "key": "appName",
+                  "value": "MyApp"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Thêm Collaborator",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"Admin\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/apps/:appName/collaborators/:email",
+              "host": ["{{base_url}}"],
+              "path": ["apps", ":appName", "collaborators", ":email"],
+              "variable": [
+                {
+                  "key": "appName",
+                  "value": "MyApp"
+                },
+                {
+                  "key": "email",
+                  "value": "developer@example.com"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Xóa Collaborator",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/apps/:appName/collaborators/:email",
+              "host": ["{{base_url}}"],
+              "path": ["apps", ":appName", "collaborators", ":email"],
+              "variable": [
+                {
+                  "key": "appName",
+                  "value": "MyApp"
+                },
+                {
+                  "key": "email",
+                  "value": "developer@example.com"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "5. Deployments",
+      "item": [
+        {
+          "name": "Lấy danh sách Deployment",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/apps/:appName/deployments",
+              "host": ["{{base_url}}"],
+              "path": ["apps", ":appName", "deployments"],
+              "variable": [
+                {
+                  "key": "appName",
+                  "value": "MyApp"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Tạo Deployment mới",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Staging\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/apps/:appName/deployments",
+              "host": ["{{base_url}}"],
+              "path": ["apps", ":appName", "deployments"],
+              "variable": [
+                {
+                  "key": "appName",
+                  "value": "MyApp"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Xem chi tiết Deployment",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/apps/:appName/deployments/:deploymentName",
+              "host": ["{{base_url}}"],
+              "path": ["apps", ":appName", "deployments", ":deploymentName"],
+              "variable": [
+                {
+                  "key": "appName",
+                  "value": "MyApp"
+                },
+                {
+                  "key": "deploymentName",
+                  "value": "Staging"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Cập nhật Deployment (Đổi tên)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Staging-V2\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/apps/:appName/deployments/:deploymentName",
+              "host": ["{{base_url}}"],
+              "path": ["apps", ":appName", "deployments", ":deploymentName"],
+              "variable": [
+                {
+                  "key": "appName",
+                  "value": "MyApp"
+                },
+                {
+                  "key": "deploymentName",
+                  "value": "Staging"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Xóa Deployment",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/apps/:appName/deployments/:deploymentName",
+              "host": ["{{base_url}}"],
+              "path": ["apps", ":appName", "deployments", ":deploymentName"],
+              "variable": [
+                {
+                  "key": "appName",
+                  "value": "MyApp"
+                },
+                {
+                  "key": "deploymentName",
+                  "value": "Staging"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Lấy thống kê Metrics của Deployment",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/apps/:appName/deployments/:deploymentName/metrics",
+              "host": ["{{base_url}}"],
+              "path": ["apps", ":appName", "deployments", ":deploymentName", "metrics"],
+              "variable": [
+                {
+                  "key": "appName",
+                  "value": "MyApp"
+                },
+                {
+                  "key": "deploymentName",
+                  "value": "Production"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Lấy lịch sử các bản phát hành (History)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/apps/:appName/deployments/:deploymentName/history?limit=100",
+              "host": ["{{base_url}}"],
+              "path": ["apps", ":appName", "deployments", ":deploymentName", "history"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "appName",
+                  "value": "MyApp"
+                },
+                {
+                  "key": "deploymentName",
+                  "value": "Production"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Xóa lịch sử phát hành (Clear History)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/apps/:appName/deployments/:deploymentName/history",
+              "host": ["{{base_url}}"],
+              "path": ["apps", ":appName", "deployments", ":deploymentName", "history"],
+              "variable": [
+                {
+                  "key": "appName",
+                  "value": "MyApp"
+                },
+                {
+                  "key": "deploymentName",
+                  "value": "Staging"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "6. Releases & Packages",
+      "item": [
+        {
+          "name": "Phát hành bản cập nhật mới (Release Package - Multipart)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "packageInfo",
+                  "value": "{\"appVersion\":\"1.0.0\",\"description\":\"Cập nhật tính năng mới\",\"isMandatory\":false,\"isDisabled\":false,\"rollout\":100}",
+                  "type": "text"
+                },
+                {
+                  "key": "package",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/apps/:appName/deployments/:deploymentName/release",
+              "host": ["{{base_url}}"],
+              "path": ["apps", ":appName", "deployments", ":deploymentName", "release"],
+              "variable": [
+                {
+                  "key": "appName",
+                  "value": "MyApp"
+                },
+                {
+                  "key": "deploymentName",
+                  "value": "Staging"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Cập nhật thông tin bản phát hành",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"packageInfo\": {\n    \"label\": \"v1\",\n    \"description\": \"Đã cập nhật mô tả mới\",\n    \"isMandatory\": true,\n    \"isDisabled\": false,\n    \"rollout\": 100\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/apps/:appName/deployments/:deploymentName/release",
+              "host": ["{{base_url}}"],
+              "path": ["apps", ":appName", "deployments", ":deploymentName", "release"],
+              "variable": [
+                {
+                  "key": "appName",
+                  "value": "MyApp"
+                },
+                {
+                  "key": "deploymentName",
+                  "value": "Staging"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Xóa bản phát hành theo Label",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/apps/:appName/deployments/:deploymentName/releases/:label",
+              "host": ["{{base_url}}"],
+              "path": ["apps", ":appName", "deployments", ":deploymentName", "releases", ":label"],
+              "variable": [
+                {
+                  "key": "appName",
+                  "value": "MyApp"
+                },
+                {
+                  "key": "deploymentName",
+                  "value": "Staging"
+                },
+                {
+                  "key": "label",
+                  "value": "v1"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Promote bản phát hành sang Deployment khác",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"packageInfo\": {\n    \"appVersion\": \"1.0.0\",\n    \"description\": \"Promote từ Staging lên Production\",\n    \"isMandatory\": false,\n    \"rollout\": 100\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/apps/:appName/deployments/:sourceDeploymentName/promote/:destDeploymentName",
+              "host": ["{{base_url}}"],
+              "path": ["apps", ":appName", "deployments", ":sourceDeploymentName", "promote", ":destDeploymentName"],
+              "variable": [
+                {
+                  "key": "appName",
+                  "value": "MyApp"
+                },
+                {
+                  "key": "sourceDeploymentName",
+                  "value": "Staging"
+                },
+                {
+                  "key": "destDeploymentName",
+                  "value": "Production"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Rollback bản phát hành gần nhất",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/apps/:appName/deployments/:deploymentName/rollback",
+              "host": ["{{base_url}}"],
+              "path": ["apps", ":appName", "deployments", ":deploymentName", "rollback"],
+              "variable": [
+                {
+                  "key": "appName",
+                  "value": "MyApp"
+                },
+                {
+                  "key": "deploymentName",
+                  "value": "Production"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Rollback tới Label cụ thể",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/apps/:appName/deployments/:deploymentName/rollback/:label",
+              "host": ["{{base_url}}"],
+              "path": ["apps", ":appName", "deployments", ":deploymentName", "rollback", ":label"],
+              "variable": [
+                {
+                  "key": "appName",
+                  "value": "MyApp"
+                },
+                {
+                  "key": "deploymentName",
+                  "value": "Production"
+                },
+                {
+                  "key": "label",
+                  "value": "v1"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "7. Client SDK Update API",
+      "item": [
+        {
+          "name": "Client Kiểm tra bản cập nhật (Update Check)",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/updateCheck?deployment_key=YOUR_DEPLOYMENT_KEY&app_version=1.0.0&package_hash=&label=&client_unique_id=device123",
+              "host": ["{{base_url}}"],
+              "path": ["updateCheck"],
+              "query": [
+                {
+                  "key": "deployment_key",
+                  "value": "YOUR_DEPLOYMENT_KEY"
+                },
+                {
+                  "key": "app_version",
+                  "value": "1.0.0"
+                },
+                {
+                  "key": "package_hash",
+                  "value": ""
+                },
+                {
+                  "key": "label",
+                  "value": ""
+                },
+                {
+                  "key": "client_unique_id",
+                  "value": "device123"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Client Báo cáo đã tải xong (Report Download Status)",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"client_unique_id\": \"device123\",\n  \"label\": \"v1\",\n  \"deployment_key\": \"YOUR_DEPLOYMENT_KEY\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/reportStatus/download",
+              "host": ["{{base_url}}"],
+              "path": ["reportStatus", "download"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Client Báo cáo trạng thái Deploy (Report Deploy Status)",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"client_unique_id\": \"device123\",\n  \"label\": \"v1\",\n  \"deployment_key\": \"YOUR_DEPLOYMENT_KEY\",\n  \"status\": \"DeploymentSucceeded\",\n  \"previous_deployment_key\": \"YOUR_DEPLOYMENT_KEY\",\n  \"previous_label_or_app_version\": \"v0\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/reportStatus/deploy",
+              "host": ["{{base_url}}"],
+              "path": ["reportStatus", "deploy"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "8. System & Maintenance",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Lấy cấu hình hệ thống (Get Config)",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/config",
+              "host": ["{{base_url}}"],
+              "path": ["config"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Xem báo cáo kiểm tra Storage Audit",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/storage/audit",
+              "host": ["{{base_url}}"],
+              "path": ["storage", "audit"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Dọn dẹp các tệp tin mồ côi (Delete Storage Audit)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/storage/audit",
+              "host": ["{{base_url}}"],
+              "path": ["storage", "audit"]
+            }
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "auth": {
@@ -527,38 +1008,14 @@
       }
     ]
   },
-  "event": [
-    {
-      "listen": "prerequest",
-      "script": {
-        "type": "text/javascript",
-        "packages": {},
-        "requests": {},
-        "exec": [""]
-      }
-    },
-    {
-      "listen": "test",
-      "script": {
-        "type": "text/javascript",
-        "packages": {},
-        "requests": {},
-        "exec": [""]
-      }
-    }
-  ],
   "variable": [
     {
       "key": "base_url",
-      "value": "https://your-server.com"
+      "value": "http://localhost:3000"
     },
     {
       "key": "access_token",
       "value": ""
-    },
-    {
-      "key": "local",
-      "value": "http://localhost:3000"
     }
   ]
 }

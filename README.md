@@ -53,7 +53,14 @@ code-push-server/
     ├── config/              # Đọc cấu hình biến môi trường (AppConfig)
     ├── core/                # Kết nối DB, SQLite WAL checkpoint, AppError, Hằng số
     ├── models/              # Định nghĩa Structs cho các bảng dữ liệu
-    ├── routes/              # Axum Handlers (apps, auth, users, access_keys, index, v1)
+    ├── routes/              # Modular Axum Routers
+    │   ├── apps/            # Quản lý Ứng dụng & Phát hành (app_handlers, collaborators, deployments, releases)
+    │   ├── storage.rs       # Kiểm tra & dọn dẹp Storage Audit (GET /storage/audit, DELETE /storage/audit)
+    │   ├── access_keys.rs   # Quản lý Access Keys cho CLI/CI-CD
+    │   ├── auth.rs          # Đăng nhập & Xác thực JWT
+    │   ├── users.rs         # Đăng ký & Mã xác nhận Email
+    │   ├── account.rs       # Thông tin tài khoản
+    │   └── index_v1.rs      # SDK Client Update API
     ├── services/            # Logic nghiệp vụ (Account, App, Package, Client, Deployments)
     └── utils/               # Utils (Security, Storage, Zip diff, Qetag, Extractors)
 ```
@@ -192,19 +199,25 @@ code-push rollback MyApp Production
 
 ### System & Maintenance API
 - `GET /health`: Health check endpoint (Trả về `OK`).
+- `GET /config`: Lấy cấu hình công khai của server.
 - `GET /storage/audit`: Kiểm tra tính toàn vẹn của Storage (Yêu cầu Token Auth). Trả về danh sách file hợp lệ, file mồ côi (`orphaned_files`) và file bị thiếu (`missing_files`).
+- `DELETE /storage/audit`: Dọn dẹp và xóa tất cả các tệp tin mồ côi (`orphaned_files`) trên ổ đĩa local storage để giải phóng dung lượng đĩa cứng.
 
 ---
 
 ## 🔒 Kiểm tra & Bảo trì Storage Audit API
 
-Để kiểm tra dung lượng ổ đĩa và các tệp tin bundle rác không còn tham chiếu trong CSDL:
-
+1. **Xem báo cáo audit**:
 ```bash
 curl -H "Authorization: Bearer <YOUR_ACCESS_KEY_OR_JWT>" http://localhost:3000/storage/audit
 ```
 
-Kết quả trả về JSON chi tiết bao gồm tổng số tệp tin, dung lượng đã dùng, danh sách tệp rác và tệp tin bị thiếu giúp quản trị viên dọn dẹp đĩa cứng kịp thời.
+2. **Dọn dẹp file mồ côi trên ổ đĩa (Purge Orphaned Files)**:
+```bash
+curl -X DELETE -H "Authorization: Bearer <YOUR_ACCESS_KEY_OR_JWT>" http://localhost:3000/storage/audit
+```
+
+Kết quả trả về JSON chi tiết số lượng tệp tin đã xóa (`deletedCount`), dung lượng đĩa đã giải phóng (`freedSize`) và danh sách các tệp tin bị xóa.
 
 ---
 

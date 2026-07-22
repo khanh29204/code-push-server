@@ -8,6 +8,7 @@ pub mod auth;
 pub mod index;
 pub mod index_v1;
 pub mod middleware;
+pub mod storage;
 pub mod users;
 
 pub fn api_router() -> Router<AppState> {
@@ -19,4 +20,5 @@ pub fn api_router() -> Router<AppState> {
         .nest("/users", users::router())
         .nest("/accessKeys", access_keys::router())
         .nest("/account", account::router())
+        .nest("/storage", storage::router())
 }
