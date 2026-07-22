@@ -1,24 +1,925 @@
-<!DOCTYPE html><html><head><title>CodePush Server</title><meta name="keywords" content="code-push-server,code-push,react-native,cordova"><meta name="description" content="CodePush service is hotupdate services which adapter react-native-code-push and cordova-plugin-code-push"><link rel="stylesheet" href="/js/bootstrap-3.3.7/css/bootstrap.min.css"><link rel="stylesheet" href="/stylesheets/common.css"></head><body><div class="site-notice">react native / cordova hot update server</div><h1 style="text-align: center;">CodePush Server</h1><p style="text-align: center;">Welcome to CodePush Server</p><div class="site-notice"><a class="btn btn-primary" href="/tokens" type="button">Obtain token</a><a class="btn btn-primary col-md-offset-1" href="/auth/password" type="button">Change Password</a><a class="btn btn-primary col-md-offset-1" id="logoutBtn" href="#" type="button">Logout</a></div></body><script src="/js/jquery-3.1.1.min.js"></script><script src="/js/bootstrap-3.3.7/js/bootstrap.min.js"></script><script>function getAccessToken() {
-    return localStorage.getItem('auth');
-}
-function ensureLogin() {
-    if (!getAccessToken()) {
-        window.location.href = '/auth/login';
-    }
-}
-function logout() {
-    localStorage.removeItem('auth');
-    location.href = '/auth/login';
-}
-function parseQuery() {
-  query = location.search.substring(1);
-  var vars = query.split('&');
-  var rs = {};
-  for (var i = 0; i < vars.length; i++) {
-    var pair = vars[i].split('=');
-    rs[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
-  }
-  return rs;
-}</script><script>ensureLogin();
+<!DOCTYPE html>
+<html lang="vi">
 
-$('#logoutBtn').on('click', logout);</script></html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CodePush Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: { brand: { 50: '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca' } },
+          fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <style>
+    [x-cloak] { display: none !important; }
+    .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+  </style>
+</head>
+
+<body class="min-h-screen bg-slate-50 text-slate-800 antialiased">
+  <!-- Top bar -->
+  <header class="border-b border-slate-200 bg-white/90 backdrop-blur sticky top-0 z-20">
+    <div class="mx-auto px-4 h-14 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="h-8 w-8 rounded-lg bg-brand-600 flex items-center justify-center shadow-md shadow-brand-600/30">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2v6" /><path d="M4.93 10.93 9 15" /><path d="M2 18h6" /><path d="M22 6h-6" />
+            <path d="M15 9l4.07-4.07" /><circle cx="12" cy="18" r="4" />
+          </svg>
+        </div>
+        <span class="font-semibold text-slate-900">CodePush Admin</span>
+        <span id="accountBadge" class="hidden ml-3 text-xs text-slate-500"></span>
+      </div>
+      <div class="flex items-center gap-1">
+        <button id="langBtn" class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition" title="Change language">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+          </svg>
+          <span id="langLabel">EN</span>
+        </button>
+        <a href="/tokens" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3" />
+          </svg>
+          <span data-i18n="cliToken">CLI token</span>
+        </a>
+        <a href="/auth/password" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+          <span data-i18n="password">Password</span>
+        </a>
+        <button id="logoutBtn" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" x2="9" y1="12" y2="12" />
+          </svg>
+          <span data-i18n="logout">Logout</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="mx-auto flex" style="height:calc(100vh - 3.5rem)">
+    <!-- Sidebar -->
+    <aside class="w-72 shrink-0 border-r border-slate-200 bg-white flex flex-col">
+      <div class="px-4 pt-4 pb-2 flex items-center justify-between">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500" data-i18n="applications">Applications</h2>
+        <button id="newAppBtn" data-i18n-title="createApp" title="Create app" class="inline-flex items-center justify-center h-7 w-7 rounded-md text-slate-500 hover:bg-slate-100 hover:text-brand-600 transition">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
+        </button>
+      </div>
+      <div id="appList" class="px-2 flex-1 overflow-y-auto scrollbar-thin space-y-0.5 pb-3">
+        <div class="text-center text-xs text-slate-400 py-6" data-i18n="loading">Loading...</div>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="flex-1 min-w-0 flex flex-col">
+      <!-- Deployment tabs -->
+      <div class="border-b border-slate-200 bg-white px-6 pt-4">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <h1 id="currentAppTitle" class="text-lg font-semibold text-slate-900" data-i18n="noAppSelected">No app selected</h1>
+            <p id="currentAppMeta" class="text-xs text-slate-500 mt-0.5"></p>
+          </div>
+          <div id="appActions" class="hidden flex items-center gap-2">
+            <button id="renameAppBtn" class="text-xs inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-slate-700 hover:bg-slate-50">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg>
+              <span data-i18n="rename">Rename</span>
+            </button>
+            <button id="deleteAppBtn" class="text-xs inline-flex items-center gap-1 rounded-md border border-red-200 bg-white px-2.5 py-1.5 text-red-700 hover:bg-red-50">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><path d="m19 6-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /></svg>
+              <span data-i18n="deleteApp">Delete app</span>
+            </button>
+          </div>
+        </div>
+        <div id="deploymentTabs" class="flex items-end gap-1 -mb-px overflow-x-auto scrollbar-thin"></div>
+      </div>
+
+      <!-- Toolbar -->
+      <div id="toolbar" class="hidden border-b border-slate-200 bg-white px-6 py-3 flex items-center justify-between flex-wrap gap-2">
+        <div class="flex items-center gap-2 flex-wrap">
+          <div class="text-sm">
+            <span class="text-slate-500" data-i18n="deploymentKey">Deployment key:</span>
+            <code id="depKey" class="ml-1 rounded bg-slate-100 px-2 py-0.5 text-xs font-mono text-slate-800"></code>
+            <button id="copyKeyBtn" class="ml-1 text-xs text-brand-600 hover:underline" data-i18n="copy">Copy</button>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <label class="text-xs text-slate-500" data-i18n="historyLimit">History limit</label>
+          <select id="historyLimit" class="text-xs rounded-md border border-slate-300 bg-white px-2 py-1">
+            <option value="15">15</option>
+            <option value="50">50</option>
+            <option value="100" selected>100</option>
+            <option value="500">500</option>
+          </select>
+          <button id="refreshBtn" class="text-xs inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-slate-700 hover:bg-slate-50">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" /><path d="M8 21H3v-5" /></svg>
+            <span data-i18n="refresh">Refresh</span>
+          </button>
+          <button id="promoteBtn" class="text-xs inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-slate-700 hover:bg-slate-50">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7" /><path d="M7 7h10v10" /></svg>
+            <span data-i18n="promote">Promote</span>
+          </button>
+          <button id="rollbackLatestBtn" class="text-xs inline-flex items-center gap-1 rounded-md border border-amber-200 bg-white px-2.5 py-1.5 text-amber-800 hover:bg-amber-50">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6" /><path d="M3 13a9 9 0 1 0 3-7.7L3 8" /></svg>
+            <span data-i18n="rollbackLatest">Rollback latest</span>
+          </button>
+          <button id="clearHistoryBtn" class="text-xs inline-flex items-center gap-1 rounded-md border border-red-200 bg-white px-2.5 py-1.5 text-red-700 hover:bg-red-50">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18" /><path d="m19 6-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /></svg>
+            <span data-i18n="clearHistory">Clear history</span>
+          </button>
+          <button id="renameDepBtn" class="text-xs inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-slate-700 hover:bg-slate-50" data-i18n="rename">Rename</button>
+          <button id="deleteDepBtn" class="text-xs inline-flex items-center gap-1 rounded-md border border-red-200 bg-white px-2.5 py-1.5 text-red-700 hover:bg-red-50" data-i18n="deleteDeployment">Delete deployment</button>
+        </div>
+      </div>
+
+      <!-- History table -->
+      <div class="flex-1 overflow-auto scrollbar-thin bg-slate-50 p-6">
+        <div id="emptyState" class="hidden flex flex-col items-center justify-center h-full text-slate-400">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mb-3 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+          <p class="text-sm" data-i18n="emptySelect">Select an app and deployment to view releases.</p>
+        </div>
+        <div id="tableWrap" class="hidden bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-slate-50 border-b border-slate-200 text-slate-600">
+                <tr>
+                  <th class="text-left font-medium px-3 py-2.5" data-i18n="thLabel">Label</th>
+                  <th class="text-left font-medium px-3 py-2.5" data-i18n="thAppVersion">App version</th>
+                  <th class="text-left font-medium px-3 py-2.5" data-i18n="thDescription">Description</th>
+                  <th class="text-left font-medium px-3 py-2.5" data-i18n="thReleased">Released</th>
+                  <th class="text-right font-medium px-3 py-2.5" data-i18n="thRollout">Rollout</th>
+                  <th class="text-center font-medium px-3 py-2.5" data-i18n="thFlags">Flags</th>
+                  <th class="text-right font-medium px-3 py-2.5" data-i18n="thSize">Size</th>
+                  <th class="text-right font-medium px-3 py-2.5" data-i18n-title="metricsTooltip" title="active / installed / downloaded / failed" data-i18n="thMetrics">Metrics</th>
+                  <th class="text-right font-medium px-3 py-2.5" data-i18n="thActions">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="historyBody" class="divide-y divide-slate-100"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal container -->
+  <div id="modalRoot"></div>
+
+  <!-- Toast -->
+  <div id="toastRoot" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
+
+  <script>
+    // ------------------------ i18n ------------------------
+    const I18N = {
+      en: {
+        cliToken: 'CLI token',
+        password: 'Password',
+        logout: 'Logout',
+        applications: 'Applications',
+        createApp: 'Create app',
+        loading: 'Loading...',
+        noAppSelected: 'No app selected',
+        rename: 'Rename',
+        deleteApp: 'Delete app',
+        deploymentKey: 'Deployment key:',
+        copy: 'Copy',
+        historyLimit: 'History limit',
+        refresh: 'Refresh',
+        promote: 'Promote',
+        rollbackLatest: 'Rollback latest',
+        clearHistory: 'Clear history',
+        deleteDeployment: 'Delete deployment',
+        emptySelect: 'Select an app and deployment to view releases.',
+        thLabel: 'Label',
+        thAppVersion: 'App version',
+        thDescription: 'Description',
+        thReleased: 'Released',
+        thRollout: 'Rollout',
+        thFlags: 'Flags',
+        thSize: 'Size',
+        thMetrics: 'Metrics',
+        thActions: 'Actions',
+        metricsTooltip: 'active / installed / downloaded / failed',
+        noApps: 'No apps yet.',
+        createOne: 'Create one',
+        createDeployment: '+ Create deployment',
+        emptyReleases: 'No releases yet on this deployment.',
+        edit: 'Edit',
+        rollback: 'Rollback',
+        del: 'Delete',
+        cancel: 'Cancel',
+        save: 'Save',
+        create: 'Create',
+        confirm: 'Confirm',
+        // Modal titles / messages
+        createAppTitle: 'Create app',
+        appName: 'App name',
+        os: 'OS',
+        platform: 'Platform',
+        renameApp: 'Rename app',
+        newName: 'New name',
+        deleteAppConfirm: (n) => `Delete "${n}" and ALL its deployments/releases? This cannot be undone.`,
+        renameDeployment: 'Rename deployment',
+        createDeploymentTitle: 'Create deployment',
+        deploymentName: 'Deployment name',
+        deleteDeploymentConfirm: (n) => `Delete "${n}" and all its releases?`,
+        clearHistoryConfirm: (n) => `Delete ALL release history of "${n}"? Clients cannot roll back after this.`,
+        rollbackLatestConfirm: (n) => `Rollback the latest release on "${n}" to the previous version?`,
+        promoteTitle: (src) => `Promote from "${src}"`,
+        destDeployment: 'Destination deployment',
+        descOverride: 'Description override (optional)',
+        rolloutPct: 'Rollout %',
+        mandatory: 'Mandatory update',
+        disabled: 'Disabled (hide from clients)',
+        description: 'Description',
+        editRelease: (l) => `Edit release ${l}`,
+        rollbackConfirm: (n, l) => `Rollback "${n}" to label ${l}? A new release will be created pointing to this label's package.`,
+        deleteRelease: 'Delete release',
+        deleteReleaseConfirm: (l) => `Delete release ${l}? Clients that already installed it won't be affected, but it will disappear from history.`,
+        noOtherDep: 'No other deployment to promote to',
+        // Toast
+        appCreated: 'App created',
+        renamed: 'Renamed',
+        appDeleted: 'App deleted',
+        deploymentCreated: 'Deployment created',
+        deleted: 'Deleted',
+        historyCleared: 'History cleared',
+        rolledBack: 'Rolled back',
+        promoted: 'Promoted',
+        updated: 'Updated',
+        keyCopied: 'Deployment key copied',
+        // Flags
+        flagMandatory: 'MANDATORY',
+        flagDisabled: 'DISABLED',
+        flagRollout: (n) => `ROLLOUT ${n}%`,
+      },
+      vi: {
+        cliToken: 'Token CLI',
+        password: 'Mật khẩu',
+        logout: 'Đăng xuất',
+        applications: 'Ứng dụng',
+        createApp: 'Tạo ứng dụng',
+        loading: 'Đang tải...',
+        noAppSelected: 'Chưa chọn ứng dụng',
+        rename: 'Đổi tên',
+        deleteApp: 'Xoá ứng dụng',
+        deploymentKey: 'Deployment key:',
+        copy: 'Sao chép',
+        historyLimit: 'Số bản ghi',
+        refresh: 'Làm mới',
+        promote: 'Promote',
+        rollbackLatest: 'Rollback bản mới nhất',
+        clearHistory: 'Xoá lịch sử',
+        deleteDeployment: 'Xoá deployment',
+        emptySelect: 'Chọn một ứng dụng và deployment để xem các bản phát hành.',
+        thLabel: 'Nhãn',
+        thAppVersion: 'Phiên bản app',
+        thDescription: 'Mô tả',
+        thReleased: 'Phát hành',
+        thRollout: 'Rollout',
+        thFlags: 'Cờ',
+        thSize: 'Kích thước',
+        thMetrics: 'Thống kê',
+        thActions: 'Thao tác',
+        metricsTooltip: 'đang dùng / đã cài / đã tải / lỗi',
+        noApps: 'Chưa có ứng dụng nào.',
+        createOne: 'Tạo mới',
+        createDeployment: '+ Tạo deployment',
+        emptyReleases: 'Deployment này chưa có bản phát hành nào.',
+        edit: 'Sửa',
+        rollback: 'Rollback',
+        del: 'Xoá',
+        cancel: 'Huỷ',
+        save: 'Lưu',
+        create: 'Tạo',
+        confirm: 'Xác nhận',
+        createAppTitle: 'Tạo ứng dụng',
+        appName: 'Tên ứng dụng',
+        os: 'Hệ điều hành',
+        platform: 'Nền tảng',
+        renameApp: 'Đổi tên ứng dụng',
+        newName: 'Tên mới',
+        deleteAppConfirm: (n) => `Xoá "${n}" và TẤT CẢ deployments/releases của nó? Không thể khôi phục.`,
+        renameDeployment: 'Đổi tên deployment',
+        createDeploymentTitle: 'Tạo deployment',
+        deploymentName: 'Tên deployment',
+        deleteDeploymentConfirm: (n) => `Xoá "${n}" và toàn bộ bản phát hành trong đó?`,
+        clearHistoryConfirm: (n) => `Xoá TOÀN BỘ lịch sử phát hành của "${n}"? Client sẽ không thể rollback sau thao tác này.`,
+        rollbackLatestConfirm: (n) => `Rollback bản phát hành mới nhất trên "${n}" về bản trước đó?`,
+        promoteTitle: (src) => `Promote từ "${src}"`,
+        destDeployment: 'Deployment đích',
+        descOverride: 'Ghi đè mô tả (không bắt buộc)',
+        rolloutPct: 'Rollout %',
+        mandatory: 'Bắt buộc cập nhật',
+        disabled: 'Vô hiệu (ẩn khỏi client)',
+        description: 'Mô tả',
+        editRelease: (l) => `Sửa bản phát hành ${l}`,
+        rollbackConfirm: (n, l) => `Rollback "${n}" về nhãn ${l}? Một bản phát hành mới sẽ được tạo trỏ tới gói của nhãn này.`,
+        deleteRelease: 'Xoá bản phát hành',
+        deleteReleaseConfirm: (l) => `Xoá bản phát hành ${l}? Client đã cài rồi sẽ không bị ảnh hưởng, nhưng nó sẽ biến mất khỏi lịch sử.`,
+        noOtherDep: 'Không có deployment nào khác để promote',
+        appCreated: 'Đã tạo ứng dụng',
+        renamed: 'Đã đổi tên',
+        appDeleted: 'Đã xoá ứng dụng',
+        deploymentCreated: 'Đã tạo deployment',
+        deleted: 'Đã xoá',
+        historyCleared: 'Đã xoá lịch sử',
+        rolledBack: 'Đã rollback',
+        promoted: 'Đã promote',
+        updated: 'Đã cập nhật',
+        keyCopied: 'Đã sao chép deployment key',
+        flagMandatory: 'BẮT BUỘC',
+        flagDisabled: 'VÔ HIỆU',
+        flagRollout: (n) => `ROLLOUT ${n}%`,
+      }
+    };
+
+    let currentLang = localStorage.getItem('lang') || ((navigator.language || '').toLowerCase().startsWith('vi') ? 'vi' : 'en');
+    function t(key, ...args) {
+      const dict = I18N[currentLang] || I18N.en;
+      const v = dict[key] ?? I18N.en[key] ?? key;
+      return typeof v === 'function' ? v(...args) : v;
+    }
+    function applyI18n(root = document) {
+      root.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.getAttribute('data-i18n')); });
+      root.querySelectorAll('[data-i18n-title]').forEach(el => { el.setAttribute('title', t(el.getAttribute('data-i18n-title'))); });
+    }
+    function setLang(lang) {
+      currentLang = lang;
+      localStorage.setItem('lang', lang);
+      document.documentElement.lang = lang;
+      document.getElementById('langLabel').textContent = lang === 'vi' ? 'VI' : 'EN';
+      applyI18n();
+      // Re-render dynamic bits
+      renderAppList();
+      renderDeploymentTabs();
+      renderHistory();
+    }
+
+    // ------------------------ Utilities ------------------------
+    const state = {
+      apps: [],
+      currentApp: null,
+      deployments: [],
+      currentDeployment: null,
+      history: [],
+      metrics: {},
+    };
+
+    const token = () => localStorage.getItem('auth');
+    if (!token()) location.href = '/auth/login';
+
+    function toast(msg, kind = 'info') {
+      const el = document.createElement('div');
+      const colors = {
+        info: 'bg-slate-800 text-white',
+        success: 'bg-emerald-600 text-white',
+        error: 'bg-red-600 text-white',
+      };
+      el.className = `rounded-lg shadow-lg px-4 py-2.5 text-sm ${colors[kind] || colors.info} animate-in`;
+      el.textContent = msg;
+      document.getElementById('toastRoot').appendChild(el);
+      setTimeout(() => el.remove(), 3500);
+    }
+
+    async function api(method, path, body, opts = {}) {
+      const headers = { 'Authorization': 'Bearer ' + token() };
+      let payload;
+      if (body !== undefined && body !== null) {
+        if (opts.form) {
+          const fd = new URLSearchParams();
+          for (const k in body) fd.append(k, body[k]);
+          payload = fd.toString();
+          headers['Content-Type'] = 'application/x-www-form-urlencoded';
+        } else {
+          headers['Content-Type'] = 'application/json';
+          payload = JSON.stringify(body);
+        }
+      }
+      const res = await fetch(path, { method, headers, body: payload });
+      if (res.status === 401) {
+        localStorage.removeItem('auth');
+        location.href = '/auth/login';
+        throw new Error('Unauthorized');
+      }
+      const text = await res.text();
+      let data = null;
+      try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+      if (!res.ok) {
+        const msg = (data && (data.message || data.error)) || text || `HTTP ${res.status}`;
+        throw new Error(msg);
+      }
+      return data;
+    }
+
+    function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+    function fmtTime(ms) {
+      if (!ms) return '—';
+      const d = new Date(ms);
+      return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+    }
+
+    function fmtBytes(n) {
+      if (!n && n !== 0) return '—';
+      if (n < 1024) return n + ' B';
+      if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+      if (n < 1024 * 1024 * 1024) return (n / 1024 / 1024).toFixed(2) + ' MB';
+      return (n / 1024 / 1024 / 1024).toFixed(2) + ' GB';
+    }
+
+    function escapeHtml(s) {
+      if (s == null) return '';
+      return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    // ------------------------ Modal ------------------------
+    function modal({ title, body, actions }) {
+      return new Promise((resolve) => {
+        const root = document.getElementById('modalRoot');
+        const backdrop = document.createElement('div');
+        backdrop.className = 'fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4';
+        backdrop.innerHTML = `
+          <div class="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h3 class="font-semibold text-slate-900">${escapeHtml(title)}</h3>
+              <button data-close class="text-slate-400 hover:text-slate-700"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+            </div>
+            <div class="px-5 py-4 max-h-[70vh] overflow-y-auto" data-body></div>
+            <div class="px-5 py-3 border-t border-slate-100 bg-slate-50 flex justify-end gap-2" data-actions></div>
+          </div>`;
+        const bodyEl = backdrop.querySelector('[data-body]');
+        const actionsEl = backdrop.querySelector('[data-actions]');
+        if (typeof body === 'string') bodyEl.innerHTML = body;
+        else bodyEl.appendChild(body);
+
+        function close(val) { backdrop.remove(); resolve(val); }
+        backdrop.querySelector('[data-close]').onclick = () => close(null);
+        backdrop.addEventListener('click', e => { if (e.target === backdrop) close(null); });
+
+        (actions || [{ label: 'Close', kind: 'secondary', value: null }]).forEach(a => {
+          const btn = document.createElement('button');
+          const base = 'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition';
+          const styles = {
+            primary: 'bg-brand-600 text-white hover:bg-brand-700',
+            secondary: 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50',
+            danger: 'bg-red-600 text-white hover:bg-red-700',
+          };
+          btn.className = base + ' ' + (styles[a.kind] || styles.secondary);
+          btn.textContent = a.label;
+          btn.onclick = async () => {
+            if (a.onClick) {
+              try {
+                const r = await a.onClick(bodyEl);
+                if (r !== false) close(a.value !== undefined ? a.value : true);
+              } catch (e) { toast(e.message, 'error'); }
+            } else close(a.value !== undefined ? a.value : true);
+          };
+          actionsEl.appendChild(btn);
+        });
+
+        root.appendChild(backdrop);
+        const firstInput = bodyEl.querySelector('input,textarea,select');
+        if (firstInput) firstInput.focus();
+      });
+    }
+
+    function prompt2(title, fields, submitLabel = 'Save') {
+      return new Promise((resolve) => {
+        const form = document.createElement('form');
+        form.className = 'space-y-3';
+        fields.forEach(f => {
+          const wrap = document.createElement('div');
+          const label = `<label class="block text-xs font-medium text-slate-700 mb-1">${escapeHtml(f.label)}</label>`;
+          let input = '';
+          if (f.type === 'textarea') {
+            input = `<textarea name="${f.name}" rows="3" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 focus:outline-none">${escapeHtml(f.value ?? '')}</textarea>`;
+          } else if (f.type === 'checkbox') {
+            input = `<label class="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="${f.name}" ${f.value ? 'checked' : ''} class="rounded border-slate-300 text-brand-600 focus:ring-brand-500/30"> ${escapeHtml(f.checkboxLabel || '')}</label>`;
+          } else if (f.type === 'select') {
+            input = `<select name="${f.name}" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 focus:outline-none">${
+              (f.options || []).map(o => `<option value="${escapeHtml(o.value)}" ${o.value == f.value ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')
+            }</select>`;
+          } else if (f.type === 'number' || f.type === 'range') {
+            input = `<input type="${f.type}" name="${f.name}" value="${escapeHtml(f.value ?? '')}" min="${f.min ?? ''}" max="${f.max ?? ''}" step="${f.step ?? ''}" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 focus:outline-none">`;
+          } else {
+            input = `<input type="text" name="${f.name}" value="${escapeHtml(f.value ?? '')}" placeholder="${escapeHtml(f.placeholder || '')}" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 focus:outline-none">`;
+          }
+          wrap.innerHTML = f.type === 'checkbox' ? input : label + input + (f.hint ? `<p class="mt-1 text-xs text-slate-500">${escapeHtml(f.hint)}</p>` : '');
+          form.appendChild(wrap);
+        });
+
+        modal({
+          title,
+          body: form,
+          actions: [
+            { label: 'Cancel', kind: 'secondary', value: null },
+            {
+              label: submitLabel, kind: 'primary', onClick: () => {
+                const out = {};
+                fields.forEach(f => {
+                  const el = form.elements[f.name];
+                  if (!el) return;
+                  if (f.type === 'checkbox') out[f.name] = el.checked;
+                  else if (f.type === 'number' || f.type === 'range') out[f.name] = el.value === '' ? null : Number(el.value);
+                  else out[f.name] = el.value;
+                });
+                resolve(out);
+              }
+            }
+          ]
+        }).then(v => { if (v === null) resolve(null); });
+      });
+    }
+
+    function confirm2(title, msg, danger = true) {
+      return modal({
+        title,
+        body: `<p class="text-sm text-slate-600">${escapeHtml(msg)}</p>`,
+        actions: [
+          { label: 'Cancel', kind: 'secondary', value: false },
+          { label: 'Confirm', kind: danger ? 'danger' : 'primary', value: true },
+        ]
+      });
+    }
+
+    // ------------------------ Data loading ------------------------
+    async function loadApps() {
+      const data = await api('GET', '/apps');
+      state.apps = data.apps || [];
+      renderAppList();
+    }
+
+    async function loadDeployments(appName) {
+      const data = await api('GET', `/apps/${encodeURIComponent(appName)}/deployments`);
+      state.deployments = data.deployments || [];
+      renderDeploymentTabs();
+    }
+
+    async function loadHistory() {
+      const app = state.currentApp, dep = state.currentDeployment;
+      if (!app || !dep) return;
+      const limit = document.getElementById('historyLimit').value || 100;
+      const [hist, met] = await Promise.all([
+        api('GET', `/apps/${encodeURIComponent(app.name)}/deployments/${encodeURIComponent(dep.name)}/history?limit=${limit}`),
+        api('GET', `/apps/${encodeURIComponent(app.name)}/deployments/${encodeURIComponent(dep.name)}/metrics`).catch(() => ({ metrics: {} })),
+      ]);
+      state.history = hist.history || [];
+      state.metrics = met.metrics || {};
+      renderHistory();
+    }
+
+    // ------------------------ Rendering ------------------------
+    function renderAppList() {
+      const list = document.getElementById('appList');
+      if (!state.apps.length) {
+        list.innerHTML = `<div class="text-center text-xs text-slate-400 py-6">${t('noApps')}<br><button id="createFirstApp" class="mt-2 text-brand-600 hover:underline">${t('createOne')}</button></div>`;
+        document.getElementById('createFirstApp')?.addEventListener('click', createApp);
+        return;
+      }
+      list.innerHTML = state.apps.map(a => {
+        const active = state.currentApp && state.currentApp.name === a.name;
+        return `<button data-app="${escapeHtml(a.name)}" class="w-full flex items-center justify-between text-left rounded-lg px-3 py-2 text-sm transition ${active ? 'bg-brand-50 text-brand-700 font-medium' : 'text-slate-700 hover:bg-slate-100'}">
+          <span class="truncate">${escapeHtml(a.name)}</span>
+          ${a.os ? `<span class="ml-2 text-[10px] uppercase tracking-wide text-slate-400">${escapeHtml(a.os)}</span>` : ''}
+        </button>`;
+      }).join('');
+      list.querySelectorAll('[data-app]').forEach(b => b.onclick = () => selectApp(b.dataset.app));
+    }
+
+    function renderDeploymentTabs() {
+      const tabs = document.getElementById('deploymentTabs');
+      document.getElementById('appActions').classList.toggle('hidden', !state.currentApp);
+      if (!state.currentApp) { tabs.innerHTML = ''; return; }
+      document.getElementById('currentAppTitle').textContent = state.currentApp.name;
+      document.getElementById('currentAppMeta').textContent = [state.currentApp.os, state.currentApp.platform].filter(Boolean).join(' · ');
+      if (!state.deployments.length) {
+        tabs.innerHTML = `<button id="newDepBtnEmpty" class="rounded-md border border-dashed border-slate-300 px-3 py-1.5 text-xs text-slate-500 hover:border-brand-400 hover:text-brand-600">${t('createDeployment')}</button>`;
+        document.getElementById('newDepBtnEmpty').onclick = createDeployment;
+        document.getElementById('toolbar').classList.add('hidden');
+        document.getElementById('emptyState').classList.remove('hidden');
+        document.getElementById('tableWrap').classList.add('hidden');
+        return;
+      }
+      tabs.innerHTML = state.deployments.map(d => {
+        const active = state.currentDeployment && state.currentDeployment.name === d.name;
+        return `<button data-dep="${escapeHtml(d.name)}" class="px-4 py-2 text-sm border-b-2 -mb-px transition ${active ? 'border-brand-600 text-brand-700 font-medium' : 'border-transparent text-slate-600 hover:text-slate-900'}">${escapeHtml(d.name)}</button>`;
+      }).join('') + `<button id="newDepBtnInline" class="ml-2 px-2 py-2 text-slate-400 hover:text-brand-600" title="${t('createDeployment')}"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg></button>`;
+      tabs.querySelectorAll('[data-dep]').forEach(b => b.onclick = () => selectDeployment(b.dataset.dep));
+      document.getElementById('newDepBtnInline').onclick = createDeployment;
+    }
+
+    function flagBadge(label, on, color) {
+      if (!on) return '';
+      const map = {
+        red: 'bg-red-50 text-red-700 border-red-100',
+        amber: 'bg-amber-50 text-amber-800 border-amber-100',
+        slate: 'bg-slate-100 text-slate-700 border-slate-200',
+      };
+      return `<span class="inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium ${map[color]}">${escapeHtml(label)}</span>`;
+    }
+
+    function renderHistory() {
+      const wrap = document.getElementById('tableWrap');
+      const empty = document.getElementById('emptyState');
+      const toolbar = document.getElementById('toolbar');
+      if (!state.currentDeployment) { wrap.classList.add('hidden'); empty.classList.remove('hidden'); toolbar.classList.add('hidden'); return; }
+      toolbar.classList.remove('hidden');
+      document.getElementById('depKey').textContent = state.currentDeployment.key || '';
+      if (!state.history.length) {
+        wrap.classList.add('hidden');
+        empty.classList.remove('hidden');
+        empty.querySelector('p').textContent = t('emptyReleases');
+        return;
+      }
+      empty.classList.add('hidden');
+      wrap.classList.remove('hidden');
+      const rows = state.history.slice().sort((a, b) => (b.uploadTime || 0) - (a.uploadTime || 0)).map(p => {
+        const m = state.metrics[p.label] || {};
+        const flags = [
+          flagBadge(t('flagMandatory'), p.isMandatory, 'red'),
+          flagBadge(t('flagDisabled'), p.isDisabled, 'slate'),
+          (p.rollout != null && p.rollout < 100) ? flagBadge(t('flagRollout', p.rollout), true, 'amber') : '',
+          p.releaseMethod && p.releaseMethod !== 'Upload' ? flagBadge(p.releaseMethod.toUpperCase(), true, 'slate') : '',
+        ].filter(Boolean).join(' ');
+        const metrics = `<span class="text-emerald-700 font-medium">${m.active ?? 0}</span> / <span>${m.installed ?? 0}</span> / <span class="text-slate-500">${m.downloaded ?? 0}</span> / <span class="text-red-600">${m.failed ?? 0}</span>`;
+        return `<tr class="hover:bg-slate-50/70">
+          <td class="px-3 py-2 font-mono text-xs font-semibold text-slate-900">${escapeHtml(p.label)}</td>
+          <td class="px-3 py-2 text-xs text-slate-700">${escapeHtml(p.appVersion || '')}</td>
+          <td class="px-3 py-2 text-xs text-slate-600 max-w-xs truncate" title="${escapeHtml(p.description || '')}">${escapeHtml(p.description || '')}</td>
+          <td class="px-3 py-2 text-xs text-slate-500" title="${new Date(p.uploadTime || 0).toString()}">
+            <div>${fmtTime(p.uploadTime)}</div>
+            <div class="text-[10px] text-slate-400">${escapeHtml(p.releasedBy || '')}</div>
+          </td>
+          <td class="px-3 py-2 text-xs text-right">${p.rollout != null ? p.rollout + '%' : '—'}</td>
+          <td class="px-3 py-2 text-center space-x-1">${flags || '<span class="text-slate-300">—</span>'}</td>
+          <td class="px-3 py-2 text-xs text-right text-slate-600">${fmtBytes(p.size)}</td>
+          <td class="px-3 py-2 text-xs text-right font-mono">${metrics}</td>
+          <td class="px-3 py-2 text-right whitespace-nowrap">
+            <button data-act="edit" data-label="${escapeHtml(p.label)}" class="text-xs text-brand-600 hover:underline">${t('edit')}</button>
+            <button data-act="rollback" data-label="${escapeHtml(p.label)}" class="ml-2 text-xs text-amber-700 hover:underline">${t('rollback')}</button>
+            <button data-act="delete" data-label="${escapeHtml(p.label)}" class="ml-2 text-xs text-red-600 hover:underline">${t('del')}</button>
+          </td>
+        </tr>`;
+      }).join('');
+      document.getElementById('historyBody').innerHTML = rows;
+      document.querySelectorAll('#historyBody [data-act]').forEach(b => {
+        b.onclick = () => handleReleaseAction(b.dataset.act, b.dataset.label);
+      });
+    }
+
+    // ------------------------ Selection ------------------------
+    async function selectApp(name) {
+      const app = state.apps.find(a => a.name === name);
+      if (!app) return;
+      state.currentApp = app;
+      state.currentDeployment = null;
+      state.history = [];
+      state.metrics = {};
+      renderAppList();
+      renderDeploymentTabs();
+      try {
+        await loadDeployments(name);
+        if (state.deployments.length) {
+          const preferred = state.deployments.find(d => d.name === 'Production') || state.deployments[0];
+          await selectDeployment(preferred.name);
+        }
+      } catch (e) { toast(e.message, 'error'); }
+    }
+
+    async function selectDeployment(name) {
+      const dep = state.deployments.find(d => d.name === name);
+      if (!dep) return;
+      state.currentDeployment = dep;
+      renderDeploymentTabs();
+      try { await loadHistory(); } catch (e) { toast(e.message, 'error'); }
+    }
+
+    // ------------------------ Actions: app / deployment ------------------------
+    async function createApp() {
+      const v = await prompt2(t('createAppTitle'), [
+        { name: 'name', label: t('appName'), placeholder: 'MyApp' },
+        { name: 'os', label: t('os'), type: 'select', options: [
+          { value: 'android', label: 'android' }, { value: 'ios', label: 'ios' }, { value: 'windows', label: 'windows' },
+        ], value: 'android' },
+        { name: 'platform', label: t('platform'), type: 'select', options: [
+          { value: 'react-native', label: 'react-native' }, { value: 'cordova', label: 'cordova' },
+        ], value: 'react-native' },
+      ], t('create'));
+      if (!v || !v.name) return;
+      try {
+        await api('POST', '/apps', v);
+        toast(t('appCreated'), 'success');
+        await loadApps();
+        await selectApp(v.name);
+      } catch (e) { toast(e.message, 'error'); }
+    }
+
+    async function renameApp() {
+      if (!state.currentApp) return;
+      const v = await prompt2(t('renameApp'), [{ name: 'name', label: t('newName'), value: state.currentApp.name }], t('rename'));
+      if (!v || !v.name || v.name === state.currentApp.name) return;
+      try {
+        await api('PATCH', `/apps/${encodeURIComponent(state.currentApp.name)}`, { name: v.name });
+        toast(t('renamed'), 'success');
+        state.currentApp = { ...state.currentApp, name: v.name };
+        await loadApps();
+        await selectApp(v.name);
+      } catch (e) { toast(e.message, 'error'); }
+    }
+
+    async function deleteApp() {
+      if (!state.currentApp) return;
+      const ok = await confirm2(t('deleteApp'), t('deleteAppConfirm', state.currentApp.name));
+      if (!ok) return;
+      try {
+        await api('DELETE', `/apps/${encodeURIComponent(state.currentApp.name)}`);
+        toast(t('appDeleted'), 'success');
+        state.currentApp = null;
+        state.currentDeployment = null;
+        state.deployments = [];
+        await loadApps();
+        renderDeploymentTabs();
+        renderHistory();
+      } catch (e) { toast(e.message, 'error'); }
+    }
+
+    async function createDeployment() {
+      if (!state.currentApp) return;
+      const v = await prompt2(t('createDeploymentTitle'), [{ name: 'name', label: t('deploymentName'), placeholder: 'Staging' }], t('create'));
+      if (!v || !v.name) return;
+      try {
+        await api('POST', `/apps/${encodeURIComponent(state.currentApp.name)}/deployments`, { name: v.name });
+        toast(t('deploymentCreated'), 'success');
+        await loadDeployments(state.currentApp.name);
+        await selectDeployment(v.name);
+      } catch (e) { toast(e.message, 'error'); }
+    }
+
+    async function renameDeployment() {
+      if (!state.currentDeployment) return;
+      const v = await prompt2(t('renameDeployment'), [{ name: 'name', label: t('newName'), value: state.currentDeployment.name }], t('rename'));
+      if (!v || !v.name || v.name === state.currentDeployment.name) return;
+      try {
+        await api('PATCH', `/apps/${encodeURIComponent(state.currentApp.name)}/deployments/${encodeURIComponent(state.currentDeployment.name)}`, { name: v.name });
+        toast(t('renamed'), 'success');
+        await loadDeployments(state.currentApp.name);
+        await selectDeployment(v.name);
+      } catch (e) { toast(e.message, 'error'); }
+    }
+
+    async function deleteDeployment() {
+      if (!state.currentDeployment) return;
+      const ok = await confirm2(t('deleteDeployment'), t('deleteDeploymentConfirm', state.currentDeployment.name));
+      if (!ok) return;
+      try {
+        await api('DELETE', `/apps/${encodeURIComponent(state.currentApp.name)}/deployments/${encodeURIComponent(state.currentDeployment.name)}`);
+        toast(t('deleted'), 'success');
+        state.currentDeployment = null;
+        await loadDeployments(state.currentApp.name);
+        if (state.deployments.length) await selectDeployment(state.deployments[0].name);
+        else renderHistory();
+      } catch (e) { toast(e.message, 'error'); }
+    }
+
+    async function clearHistory() {
+      if (!state.currentDeployment) return;
+      const ok = await confirm2(t('clearHistory'), t('clearHistoryConfirm', state.currentDeployment.name));
+      if (!ok) return;
+      try {
+        await api('DELETE', `/apps/${encodeURIComponent(state.currentApp.name)}/deployments/${encodeURIComponent(state.currentDeployment.name)}/history`);
+        toast(t('historyCleared'), 'success');
+        await loadHistory();
+      } catch (e) { toast(e.message, 'error'); }
+    }
+
+    async function rollbackLatest() {
+      if (!state.currentDeployment) return;
+      const ok = await confirm2(t('rollbackLatest'), t('rollbackLatestConfirm', state.currentDeployment.name));
+      if (!ok) return;
+      try {
+        await api('POST', `/apps/${encodeURIComponent(state.currentApp.name)}/deployments/${encodeURIComponent(state.currentDeployment.name)}/rollback`);
+        toast(t('rolledBack'), 'success');
+        await loadHistory();
+      } catch (e) { toast(e.message, 'error'); }
+    }
+
+    async function promotePackage() {
+      if (!state.currentDeployment) return;
+      const others = state.deployments.filter(d => d.name !== state.currentDeployment.name);
+      if (!others.length) return toast(t('noOtherDep'), 'error');
+      const v = await prompt2(t('promoteTitle', state.currentDeployment.name), [
+        { name: 'dest', label: t('destDeployment'), type: 'select', options: others.map(d => ({ value: d.name, label: d.name })) },
+        { name: 'description', label: t('descOverride'), type: 'textarea' },
+        { name: 'rollout', label: t('rolloutPct'), type: 'number', min: 1, max: 100, value: 100 },
+        { name: 'isMandatory', type: 'checkbox', checkboxLabel: t('mandatory') },
+      ], t('promote'));
+      if (!v) return;
+      const body = { packageInfo: { rollout: v.rollout ?? 100, isMandatory: !!v.isMandatory } };
+      if (v.description) body.packageInfo.description = v.description;
+      try {
+        await api('POST', `/apps/${encodeURIComponent(state.currentApp.name)}/deployments/${encodeURIComponent(state.currentDeployment.name)}/promote/${encodeURIComponent(v.dest)}`, body);
+        toast(t('promoted'), 'success');
+        await loadHistory();
+      } catch (e) { toast(e.message, 'error'); }
+    }
+
+    async function handleReleaseAction(act, label) {
+      const p = state.history.find(x => x.label === label);
+      if (!p) return;
+      if (act === 'edit') {
+        const v = await prompt2(t('editRelease', label), [
+          { name: 'description', label: t('description'), type: 'textarea', value: p.description || '' },
+          { name: 'rollout', label: t('rolloutPct'), type: 'number', min: 1, max: 100, value: p.rollout ?? 100 },
+          { name: 'isMandatory', type: 'checkbox', checkboxLabel: t('mandatory'), value: !!p.isMandatory },
+          { name: 'isDisabled', type: 'checkbox', checkboxLabel: t('disabled'), value: !!p.isDisabled },
+        ], t('save'));
+        if (!v) return;
+        const body = {
+          packageInfo: {
+            label: label,
+            description: v.description,
+            rollout: v.rollout,
+            isMandatory: !!v.isMandatory,
+            isDisabled: !!v.isDisabled,
+          }
+        };
+        try {
+          await api('PATCH', `/apps/${encodeURIComponent(state.currentApp.name)}/deployments/${encodeURIComponent(state.currentDeployment.name)}/release`, body);
+          toast(t('updated'), 'success');
+          await loadHistory();
+        } catch (e) { toast(e.message, 'error'); }
+      } else if (act === 'rollback') {
+        const ok = await confirm2(t('rollback'), t('rollbackConfirm', state.currentDeployment.name, label));
+        if (!ok) return;
+        try {
+          await api('POST', `/apps/${encodeURIComponent(state.currentApp.name)}/deployments/${encodeURIComponent(state.currentDeployment.name)}/rollback/${encodeURIComponent(label)}`);
+          toast(t('rolledBack'), 'success');
+          await loadHistory();
+        } catch (e) { toast(e.message, 'error'); }
+      } else if (act === 'delete') {
+        const ok = await confirm2(t('deleteRelease'), t('deleteReleaseConfirm', label));
+        if (!ok) return;
+        try {
+          await api('DELETE', `/apps/${encodeURIComponent(state.currentApp.name)}/deployments/${encodeURIComponent(state.currentDeployment.name)}/releases/${encodeURIComponent(label)}`);
+          toast(t('deleted'), 'success');
+          await loadHistory();
+        } catch (e) { toast(e.message, 'error'); }
+      }
+    }
+
+    // ------------------------ Wire up ------------------------
+    document.getElementById('logoutBtn').onclick = () => { localStorage.removeItem('auth'); location.href = '/auth/login'; };
+    document.getElementById('langBtn').onclick = () => setLang(currentLang === 'vi' ? 'en' : 'vi');
+    document.getElementById('newAppBtn').onclick = createApp;
+    document.getElementById('renameAppBtn').onclick = renameApp;
+    document.getElementById('deleteAppBtn').onclick = deleteApp;
+    document.getElementById('refreshBtn').onclick = () => loadHistory().catch(e => toast(e.message, 'error'));
+    document.getElementById('historyLimit').onchange = () => loadHistory().catch(e => toast(e.message, 'error'));
+    document.getElementById('promoteBtn').onclick = promotePackage;
+    document.getElementById('rollbackLatestBtn').onclick = rollbackLatest;
+    document.getElementById('clearHistoryBtn').onclick = clearHistory;
+    document.getElementById('renameDepBtn').onclick = renameDeployment;
+    document.getElementById('deleteDepBtn').onclick = deleteDeployment;
+    document.getElementById('copyKeyBtn').onclick = () => {
+      const key = document.getElementById('depKey').textContent;
+      if (!key) return;
+      navigator.clipboard.writeText(key).then(() => toast(t('keyCopied'), 'success'));
+    };
+
+    // Load account info for header badge
+    fetch('/account', { headers: { Authorization: 'Bearer ' + token() } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (!d) return;
+        const acc = d.account || d;
+        const label = acc.email || acc.username || acc.name;
+        if (label) {
+          const badge = document.getElementById('accountBadge');
+          badge.textContent = label;
+          badge.classList.remove('hidden');
+        }
+      }).catch(() => {});
+
+    // Bootstrap
+    setLang(currentLang);
+    loadApps()
+      .then(() => {
+        if (state.apps.length && !state.currentApp) {
+          return selectApp(state.apps[0].name);
+        }
+      })
+      .catch(e => toast(e.message, 'error'));
+  </script>
+</body>
+</html>

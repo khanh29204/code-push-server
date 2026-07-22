@@ -1,4 +1,110 @@
-<!DOCTYPE html><html><head><title>CodePush Server</title><meta name="keywords" content="code-push-server,code-push,react-native,cordova"><meta name="description" content="CodePush service is hotupdate services which adapter react-native-code-push and cordova-plugin-code-push"><link rel="stylesheet" href="/js/bootstrap-3.3.7/css/bootstrap.min.css"><link rel="stylesheet" href="/stylesheets/common.css"></head><body><h1 style="text-align: center;">CodePush Server</h1><div class="site-notice"><a class="btn btn-lg btn-primary" id="submitBtn">Obtain token</a></div><div class="form-group"><div id="tipsSuccess" style="display:none"><h2 style="text-align: center;">Authentication succeeded.</h2><h2 style="text-align: center;">Please copy and paste this access key to the command window:</h2></div></div><div class="form-group"><div class="col-sm-offset-3 col-sm-6"><input class="form-control" id="key" style="display:none" readonly></div></div><br><div class="form-group"><div id="tipsClose" style="display:none"><h2 style="text-align: center;">After doing so, please close this browser.</h2></div></div></body><script src="/js/jquery-3.1.1.min.js"></script><script src="/js/bootstrap-3.3.7/js/bootstrap.min.js"></script><script>function getAccessToken() {
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Obtain token · CodePush Server</title>
+  <meta name="keywords" content="code-push-server,code-push,react-native,cordova">
+  <meta name="description"
+    content="CodePush service is hotupdate services which adapter react-native-code-push and cordova-plugin-code-push">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: { brand: { 50: '#eef2ff', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca' } },
+          fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+</head>
+
+<body class="min-h-screen bg-slate-50 text-slate-800 antialiased">
+  <header class="border-b border-slate-200 bg-white/80 backdrop-blur sticky top-0 z-10">
+    <div class="mx-auto max-w-3xl px-4 h-16 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-2.5">
+        <div class="h-9 w-9 rounded-xl bg-brand-600 flex items-center justify-center shadow-md shadow-brand-600/30">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2v6" /><path d="M4.93 10.93 9 15" /><path d="M2 18h6" /><path d="M22 6h-6" />
+            <path d="M15 9l4.07-4.07" /><circle cx="12" cy="18" r="4" />
+          </svg>
+        </div>
+        <span class="font-semibold text-slate-900">CodePush Server</span>
+      </a>
+      <a href="/" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+        Back
+      </a>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-2xl px-4 py-12">
+    <div class="text-center mb-8">
+      <h1 class="text-3xl font-bold tracking-tight text-slate-900">Obtain access token</h1>
+      <p class="mt-2 text-slate-500">Generate an access key to use with the CodePush CLI.</p>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-xl shadow-slate-200/60 border border-slate-100 p-8">
+      <!-- Generate button (visible before token) -->
+      <div id="generateSection" class="flex flex-col items-center">
+        <div class="h-14 w-14 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center mb-5">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3" />
+          </svg>
+        </div>
+        <p class="text-sm text-slate-500 mb-6 text-center">Click below to generate a new access key.</p>
+        <a class="btn btn-lg btn-primary inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-brand-600 px-6 py-2.5 font-medium text-white shadow-sm hover:bg-brand-700 focus:ring-2 focus:ring-brand-500/40 focus:outline-none transition"
+          id="submitBtn">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg>
+          Obtain token
+        </a>
+      </div>
+
+      <!-- Success state -->
+      <div class="form-group">
+        <div id="tipsSuccess" style="display:none" class="text-center">
+          <div class="mx-auto h-14 w-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+          </div>
+          <h2 class="text-lg font-semibold text-slate-900">Authentication succeeded</h2>
+          <p class="mt-1 text-sm text-slate-500">Copy this access key and paste it into your terminal.</p>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <div class="col-sm-offset-3 col-sm-6 relative mt-5">
+          <input class="form-control block w-full rounded-lg border border-slate-300 bg-slate-50 px-3.5 py-2.5 pr-24 font-mono text-sm text-slate-900 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 focus:outline-none transition"
+            id="key" style="display:none" readonly>
+          <button id="copyBtn" type="button" style="display:none"
+            class="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center gap-1 rounded-md bg-white border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+            </svg>
+            <span id="copyLabel">Copy</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <div id="tipsClose" style="display:none" class="mt-5">
+          <div class="rounded-lg bg-amber-50 border border-amber-100 px-4 py-3 text-sm text-amber-800 text-center">
+            After copying the key, you can safely close this window.
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+<script src="/js/jquery-3.1.1.min.js"></script>
+<script>function getAccessToken() {
     return localStorage.getItem('auth');
 }
 function ensureLogin() {
@@ -19,7 +125,8 @@ function parseQuery() {
     rs[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
   }
   return rs;
-}</script><script>ensureLogin();
+}</script>
+<script>ensureLogin();
 var submit = false;
 
 $('#submitBtn').on('click', function () {
@@ -53,9 +160,11 @@ $('#submitBtn').on('click', function () {
     dataType: 'json',
     success: function (data) {
       submit = false;
+      $('#generateSection').hide();
       $('#tipsSuccess').show();
       $('#key').val(data.accessKey.name);
       $('#key').show();
+      $('#copyBtn').show();
       $('#tipsClose').show();
     },
     error: function(XMLHttpRequest, textStatus, errorThrown) {
@@ -68,4 +177,22 @@ $('#submitBtn').on('click', function () {
       }
     }
   });
-});</script></html>
+});
+
+$('#copyBtn').on('click', function () {
+  var input = document.getElementById('key');
+  input.select();
+  input.setSelectionRange(0, 99999);
+  try {
+    navigator.clipboard.writeText(input.value).then(function () {
+      $('#copyLabel').text('Copied');
+      setTimeout(function () { $('#copyLabel').text('Copy'); }, 1500);
+    });
+  } catch (e) {
+    document.execCommand('copy');
+    $('#copyLabel').text('Copied');
+    setTimeout(function () { $('#copyLabel').text('Copy'); }, 1500);
+  }
+});</script>
+
+</html>

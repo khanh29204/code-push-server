@@ -1,4 +1,80 @@
-<!DOCTYPE html><html><head><title>CodePush Server</title><meta name="keywords" content="code-push-server,code-push,react-native,cordova"><meta name="description" content="CodePush service is hotupdate services which adapter react-native-code-push and cordova-plugin-code-push"><link rel="stylesheet" href="/js/bootstrap-3.3.7/css/bootstrap.min.css"><link rel="stylesheet" href="/stylesheets/common.css"><link rel="stylesheet" href="/stylesheets/signin.css"></head><body><div class="container"><form class="form-signin" id="form" method="post"><h2 class="form-signin-heading" data-i18n="Please sign in">Please sign in</h2><label class="sr-only" for="inputEmail">email address／username</label><input class="form-control" id="inputEmail" type="text" name="account" placeholder="email address／username" required autofocus><label class="sr-only" for="inputPassword" data-i18n="password">password</label><input class="form-control" id="inputPassword" type="password" name="password" placeholder="password" required><a class="btn btn-lg btn-primary btn-block" id="submitBtn" data-i18n="Log in">Log in</a><a class="btn btn-lg btn-primary btn-block" id="registerBtn" href="/auth/register" style="display: none; margin-top: 10px;" data-i18n="Register">Register</a></form></div></body><script src="/js/jquery-3.1.1.min.js"></script><script src="/js/bootstrap-3.3.7/js/bootstrap.min.js"></script><script>function getAccessToken() {
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · CodePush Server</title>
+  <meta name="keywords" content="code-push-server,code-push,react-native,cordova">
+  <meta name="description"
+    content="CodePush service is hotupdate services which adapter react-native-code-push and cordova-plugin-code-push">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: { brand: { 50: '#eef2ff', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca' } },
+          fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+</head>
+
+<body class="min-h-screen bg-slate-50 text-slate-800 antialiased">
+  <div class="min-h-screen flex items-center justify-center px-4 py-12">
+    <div class="w-full max-w-md">
+      <!-- Brand -->
+      <div class="flex flex-col items-center mb-8">
+        <div class="h-14 w-14 rounded-2xl bg-brand-600 flex items-center justify-center shadow-lg shadow-brand-600/30">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-white" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2v6" />
+            <path d="M4.93 10.93 9 15" />
+            <path d="M2 18h6" />
+            <path d="M22 6h-6" />
+            <path d="M15 9l4.07-4.07" />
+            <circle cx="12" cy="18" r="4" />
+          </svg>
+        </div>
+        <h1 class="mt-4 text-xl font-semibold text-slate-900">CodePush Server</h1>
+      </div>
+
+      <!-- Card -->
+      <div class="bg-white rounded-2xl shadow-xl shadow-slate-200/60 border border-slate-100 p-8">
+        <form class="form-signin" id="form" method="post">
+          <h2 class="form-signin-heading text-lg font-semibold text-slate-900 mb-1" data-i18n="Please sign in">Please
+            sign in</h2>
+          <p class="text-sm text-slate-500 mb-6">Access your hot-update dashboard.</p>
+
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1.5" for="inputEmail">email address／username</label>
+              <input
+                class="form-control block w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-slate-900 placeholder-slate-400 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 focus:outline-none transition"
+                id="inputEmail" type="text" name="account" placeholder="email address／username" required autofocus>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1.5" for="inputPassword" data-i18n="password">password</label>
+              <input
+                class="form-control block w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-slate-900 placeholder-slate-400 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 focus:outline-none transition"
+                id="inputPassword" type="password" name="password" placeholder="password" required>
+            </div>
+          </div>
+
+          <a class="btn btn-lg btn-primary btn-block mt-6 inline-flex w-full cursor-pointer items-center justify-center rounded-lg bg-brand-600 px-4 py-2.5 font-medium text-white shadow-sm hover:bg-brand-700 focus:ring-2 focus:ring-brand-500/40 focus:outline-none transition"
+            id="submitBtn" data-i18n="Log in">Log in</a>
+          <a class="btn btn-lg btn-primary btn-block mt-3 inline-flex w-full cursor-pointer items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:ring-2 focus:ring-brand-500/30 focus:outline-none transition"
+            id="registerBtn" href="/auth/register" style="display: none;" data-i18n="Register">Register</a>
+        </form>
+      </div>
+
+      <p class="text-center text-xs text-slate-400 mt-6">react native / cordova hot update server</p>
+    </div>
+  </div>
+</body>
+<script src="/js/jquery-3.1.1.min.js"></script>
+<script>function getAccessToken() {
     return localStorage.getItem('auth');
 }
 function ensureLogin() {
@@ -19,7 +95,8 @@ function parseQuery() {
     rs[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
   }
   return rs;
-}</script><script>function onLoggedIn() {
+}</script>
+<script>function onLoggedIn() {
     var query = parseQuery()
     if (query.hostname) {
         // come from code-push-cli login
@@ -85,4 +162,6 @@ if (lang && lang.startsWith('zh')) {
   document.getElementById('inputEmail').placeholder = d['email address'] + '／' + d['username'];
   document.getElementById('inputPassword').placeholder = d['password'];
 }
-</script></html>
+</script>
+
+</html>

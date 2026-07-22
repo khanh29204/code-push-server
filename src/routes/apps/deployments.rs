@@ -147,6 +147,7 @@ pub async fn get_deployment_metrics(
     Path((app_name, deployment_name)): Path<(String, String)>,
     State(state): State<AppState>,
 ) -> Result<Json<MetricsResponse>, AppError> {
+    use sqlx::Row;
     let app = crate::services::app_manager::AppManager::find_app_by_name(
         &state.db.pool,
         user.id,
@@ -162,20 +163,34 @@ pub async fn get_deployment_metrics(
     .fetch_optional(&state.db.pool)
     .await?
     .ok_or_else(|| AppError::NotFound("Deployment not found".into()))?;
-    let dv = sqlx::query_as::<_, crate::models::deployments_versions::DeploymentVersion>(
-        "SELECT * FROM deployments_versions WHERE id = ?",
+
+    let rows = sqlx::query(
+        "SELECT p.label, pm.active, pm.downloaded, pm.failed, pm.installed FROM packages p JOIN packages_metrics pm ON p.id = pm.package_id WHERE p.deployment_id = ?"
     )
-    .bind(dep.last_deployment_version_id)
-    .fetch_optional(&state.db.pool)
+    .bind(dep.id)
+    .fetch_all(&state.db.pool)
     .await?;
-    let package_id = dv.map(|v| v.current_package_id).unwrap_or(0);
-    let metrics = crate::services::package_manager::PackageManager::get_metrics_by_package_id(
-        &state.db.pool,
-        package_id,
-    )
-    .await?;
+
+    let mut metrics_map = serde_json::Map::new();
+    for row in rows {
+        let label: String = row.get("label");
+        let active: i64 = row.get("active");
+        let downloaded: i64 = row.get("downloaded");
+        let failed: i64 = row.get("failed");
+        let installed: i64 = row.get("installed");
+        metrics_map.insert(
+            label,
+            serde_json::json!({
+                "active": active,
+                "downloaded": downloaded,
+                "failed": failed,
+                "installed": installed,
+            }),
+        );
+    }
+
     Ok(Json(MetricsResponse {
-        metrics: serde_json::to_value(metrics).unwrap_or(serde_json::Value::Null),
+        metrics: serde_json::Value::Object(metrics_map),
     }))
 }
 
