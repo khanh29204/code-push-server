@@ -115,9 +115,14 @@ Chi tiết các biến cấu hình:
 
 ## Giao diện Web Admin Dashboard (`http://localhost:3000`)
 
-Server tích hợp sẵn Web UI trực quan, truy cập trực tiếp tại địa chỉ server (ví dụ: `http://localhost:3000`):
+Server tích hợp sẵn Web UI trực quan, truy cập trực tiếp tại địa chỉ server (ví dụ: `http://localhost:3000`).
 
-- **Đăng nhập & Đăng ký**: Truy cập `/login` hoặc `/register` để đăng nhập tài khoản quản trị (có xác minh mã OTP qua Email).
+Tài khoản mặc định sau khi khởi tạo CSDL:
+- **Tài khoản (Username / Email)**: `admin` (hoặc `admin@codepush.com`)
+- **Mật khẩu (Password)**: `123456`
+
+Các tính năng chính:
+- **Đăng nhập & Đăng ký**: Truy cập `/login` hoặc `/register` để đăng nhập tài khoản quản trị.
 - **Quản lý Apps & Deployments**: Xem danh sách ứng dụng, tạo app mới, quản lý các môi trường (Staging, Production), xem lịch sử release chi tiết.
 - **Promote & Rollback trên Web**: Thao tác promote bản phát hành từ Staging lên Production hoặc thực hiện rollback chỉ với một click.
 - **Quản lý Access Keys (`/tokens`)**: Tạo và quản lý Access Tokens dành riêng cho CodePush CLI hoặc quy trình CI/CD.
