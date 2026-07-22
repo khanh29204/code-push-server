@@ -1,13 +1,20 @@
 # CodePush Server (Rust Edition)
 
+![Rust](https://img.shields.io/badge/Rust-2024-orange?logo=rust)
+![Axum](https://img.shields.io/badge/Axum-0.8-blue?logo=tokio)
+![Docker Ready](https://img.shields.io/badge/Docker-Ready-blue?logo=docker)
+![License](https://img.shields.io/badge/License-MIT-green)
+![CI/CD](https://img.shields.io/github/actions/workflow/status/khanh29204/code-push-server/main.yml?branch=master&label=Build%20%26%20Deploy)
+
 Một phiên bản CodePush Server được viết lại hoàn toàn bằng **Rust** (dựa trên web framework [Axum](https://github.com/tokio-rs/axum)), thay thế hoàn hảo cho phiên bản Node.js gốc. Dự án mang lại hiệu năng vượt trội, mức sử dụng tài nguyên CPU/RAM cực thấp, khởi động tức thì và khả năng vận hành ổn định trong môi trường production.
 
-Tương thích 100% với **CodePush CLI** và SDK client ([react-native-code-push](https://github.com/microsoft/react-native-code-push)).
+Tương thích 100% với **CodePush CLI** và SDK client ([react-native-code-push](https://github.com/microsoft/react-native-code-push)), đồng thời tích hợp sẵn **Web Admin Dashboard** trực quan phục vụ quản trị hệ thống.
 
 ---
 
-## 🚀 Tính năng nổi bật
+## Tính năng nổi bật
 
+- **Giao diện Web Admin Dashboard**: Tích hợp sẵn giao diện quản trị Web hiện đại tại `http://localhost:3000` phục vụ quản lý Apps, Deployments, Releases, Access Keys và Storage Audit mà không bắt buộc gõ lệnh CLI.
 - **Tương thích toàn diện**: Hỗ trợ đầy đủ các lệnh CodePush CLI (`login`, `app add`, `release-react`, `deployment ls`, `promote`, `rollback`,...).
 - **Cập nhật thông minh (Delta/Diff Updates)**: Tự động tính toán và tạo các gói diff (gói chênh lệch) cho các phiên bản phát hành, giúp giảm dung lượng tải về của client React Native/Cordova.
 - **Quản lý Rollout & Mandatory Update**: Hỗ trợ cập nhật bắt buộc và phát hành theo tỷ lệ phần trăm (Staged Rollout) dựa trên Unique ID của thiết bị.
@@ -19,13 +26,12 @@ Tương thích 100% với **CodePush CLI** và SDK client ([react-native-code-pu
   - **SQLite** với chế độ WAL (Write-Ahead Logging) cho khả năng ghi/đọc đồng thời cao.
   - Tự động dọn dẹp và checkpoint WAL (`PRAGMA wal_checkpoint(TRUNCATE)`) khi tắt server (Graceful Shutdown).
   - **Redis** cho caching (Update Check, Rollout, Rate Limit).
-- **Công cụ Storage Audit**: Endpoint tích hợp sẵn cho phép kiểm tra tính toàn vẹn của tệp tin lưu trữ (phát hiện file rác `orphaned` hoặc tệp tin bị thiếu `missing`).
-- **Giao diện Web UI**: Tích hợp các trang web tĩnh cơ bản phục vụ đăng nhập, lấy Access Key và đăng ký tài khoản.
+- **Công cụ Storage Audit**: Endpoint & UI tích hợp sẵn cho phép kiểm tra tính toàn vẹn của tệp tin lưu trữ (phát hiện file rác `orphaned` hoặc tệp tin bị thiếu `missing`).
 - **Docker Ready**: Dockerfile multi-stage tạo binary static trên Alpine (`x86_64-unknown-linux-musl`), container runtime cực nhẹ chạy từ `scratch`.
 
 ---
 
-## 🛠 Tech Stack
+## Tech Stack
 
 - **Core & Runtime**: Rust (Edition 2024), [Tokio](https://tokio.rs/) (Async Runtime)
 - **Web Framework**: [Axum](https://github.com/tokio-rs/axum) 0.8
@@ -33,11 +39,12 @@ Tương thích 100% với **CodePush CLI** và SDK client ([react-native-code-pu
 - **Security & Tokens**: `jsonwebtoken`, `bcrypt`, `sha2`, `sha1`, `md5`
 - **Compression & Hash**: `zip`, `walkdir`, thuật toán hash gói QETAG tương thích CodePush
 - **Email**: `lettre` (SMTP client)
+- **Frontend & Web UI**: HTML5, Tailwind CSS, JavaScript (Vanilla ES6), Feather/Heroicons
 - **Static Assets & Logging**: `tower-http`, `tracing`, `tracing-subscriber`
 
 ---
 
-## 📁 Cấu trúc dự án
+## Cấu trúc dự án
 
 ```text
 code-push-server/
@@ -45,7 +52,10 @@ code-push-server/
 ├── Dockerfile               # Dockerfile multi-stage (Musl static -> Scratch)
 ├── docker-compose.yml       # Cấu hình chạy nhanh với Docker Compose
 ├── .env.example             # Mẫu tệp cấu hình biến môi trường
-├── public/                  # Các file Web UI tĩnh (login, register, tokens, CSS/JS)
+├── public/                  # Các file Web UI Admin & Auth tĩnh
+│   ├── html/                # Giao diện HTML (index, login, register, tokens, password, confirm)
+│   ├── js/                  # Scripts logic quản trị Web UI
+│   └── stylesheets/         # Custom CSS styles
 ├── data/                    # Thư mục mặc định chứa cơ sở dữ liệu SQLite
 ├── data-storage/            # Thư mục lưu trữ các gói bundle zip phát hành
 └── src/
@@ -67,7 +77,7 @@ code-push-server/
 
 ---
 
-## ⚙️ Cấu hình biến môi trường (`.env`)
+## Cấu hình biến môi trường (`.env`)
 
 Tạo file `.env` dựa trên `.env.example`:
 
@@ -86,12 +96,16 @@ Chi tiết các biến cấu hình:
 | `REDIS_HOST` | `127.0.0.1` | Địa chỉ Redis host |
 | `REDIS_PORT` | `6379` | Cổng kết nối Redis |
 | `REDIS_PASSWORD` | - | Mật khẩu Redis (nếu có) |
+| `REDIS_DB` | `0` | Database index của Redis |
 | `STORAGE_TYPE` | `local` | Loại lưu trữ gói bundle (`local`) |
 | `STORAGE_DIR` | `../data-storage` | Thư mục vật lý lưu trữ file ZIP trên disk |
 | `LOCAL_DOWNLOAD_URL` | `http://127.0.0.1:3000/download` | URL cho client tải gói cập nhật |
-| `ALLOW_REGISTRATION` | `true` | Cho phép người dùng mới tự đăng ký tài khoản |
-| `TRY_LOGIN_TIMES` | `4` | Số lần đăng nhập sai tối đa trong ngày |
+| `ALLOW_REGISTRATION` | `true` | Cho phép người dùng mới tự đăng ký tài khoản (`true`/`false`) |
+| `TRY_LOGIN_TIMES` | `4` | Số lần đăng nhập sai tối đa trong ngày (0 = không giới hạn) |
 | `DIFF_NUMS` | `3` | Số lượng gói diff tối đa tạo cho các phiên bản cũ |
+| `DATA_DIR` | `/tmp` | Thư mục tạm dùng để tính toán gói diff |
+| `UPDATE_CHECK_CACHE` | `false` | Bật/tắt cache kết quả updateCheck trong Redis (`true`/`false`) |
+| `ROLLOUT_CLIENT_UNIQUE_ID_CACHE` | `false` | Bật/tắt cache Unique ID thiết bị rollout trong Redis (`true`/`false`) |
 | `SMTP_HOST` | - | Địa chỉ SMTP server gửi email xác nhận |
 | `SMTP_PORT` | `465` | Cổng SMTP |
 | `SMTP_USERNAME` | - | Tài khoản SMTP |
@@ -99,7 +113,20 @@ Chi tiết các biến cấu hình:
 
 ---
 
-## 🚦 Hướng dẫn cài đặt và chạy
+## Giao diện Web Admin Dashboard (`http://localhost:3000`)
+
+Server tích hợp sẵn Web UI trực quan, truy cập trực tiếp tại địa chỉ server (ví dụ: `http://localhost:3000`):
+
+- **Đăng nhập & Đăng ký**: Truy cập `/login` hoặc `/register` để đăng nhập tài khoản quản trị (có xác minh mã OTP qua Email).
+- **Quản lý Apps & Deployments**: Xem danh sách ứng dụng, tạo app mới, quản lý các môi trường (Staging, Production), xem lịch sử release chi tiết.
+- **Promote & Rollback trên Web**: Thao tác promote bản phát hành từ Staging lên Production hoặc thực hiện rollback chỉ với một click.
+- **Quản lý Access Keys (`/tokens`)**: Tạo và quản lý Access Tokens dành riêng cho CodePush CLI hoặc quy trình CI/CD.
+- **Kiểm tra Storage Audit**: Giao diện theo dõi tính toàn vẹn các file ZIP gói cập nhật, phát hiện và xóa file rác (orphaned files) trực tiếp trên Web.
+- **Hỗ trợ Đa ngôn ngữ**: Chuyển đổi linh hoạt giữa giao diện Tiếng Việt và Tiếng Anh.
+
+---
+
+## Hướng dẫn cài đặt và chạy
 
 ### 1. Chạy trực tiếp với Cargo (Local Development)
 
@@ -131,7 +158,18 @@ docker run -d -p 3000:3000 --env-file .env --name code-push-server code-push-ser
 
 ---
 
-## 💻 Sử dụng với CodePush CLI
+## CI/CD & Automated Deployment (GitHub Actions)
+
+Dự án tích hợp sẵn quy trình CI/CD tự động hóa qua GitHub Actions (`.github/workflows/main.yml`):
+
+- **Lọc đường dẫn thông minh (Smart Path Filtering)**: Chỉ kích hoạt build lại khi có thay đổi thực sự trong mã nguồn (`src/`), file tĩnh (`public/`), phụ thuộc (`Cargo.toml`/`Cargo.lock`), hoặc cấu hình Docker (`Dockerfile`, `docker-compose.yml`, `.dockerignore`). Việc thay đổi tài liệu (`README.md`), cấu hình Postman (`postman.json`), tệp mẫu `.env.example` hay file cấu hình tool/IDE sẽ **không kích hoạt build lại không cần thiết**.
+- **Tối ưu hóa Caching & Build Time**: Sử dụng `docker/build-push-action` cùng cơ chế cache GitHub Actions (`cache-from: type=gha`, `cache-to: type=gha,mode=max`) kết hợp multi-stage Docker build, giúp tái sử dụng các dependency layer đã biên dịch để rút ngắn tối đa thời gian build Docker image.
+- **Quản lý Concurrency**: Sử dụng cấu hình `concurrency` với `cancel-in-progress: true` để tự động hủy các job build cũ nếu có commit mới được push liên tục lên branch `master`, tránh lãng phí tài nguyên và rủi ro race-condition khi deploy.
+- **Tự động Push & Deploy**: Build Docker image và đẩy lên GitHub Container Registry (`ghcr.io`), sau đó tự động kết nối qua SSH vào Production Server để thực thi script deploy (`pull.sh`).
+
+---
+
+## Sử dụng với CodePush CLI
 
 ### 1. Đăng nhập qua CodePush CLI
 
@@ -181,7 +219,7 @@ code-push rollback MyApp Production
 
 ---
 
-## 📡 Danh sách API Endpoints
+## Danh sách API Endpoints
 
 ### Client Endpoints (App / SDK)
 - `GET /updateCheck` hoặc `GET /v0.1/public/codepush/update_check`: Client kiểm tra bản cập nhật mới.
@@ -205,7 +243,7 @@ code-push rollback MyApp Production
 
 ---
 
-## 🔒 Kiểm tra & Bảo trì Storage Audit API
+## Kiểm tra & Bảo trì Storage Audit API
 
 1. **Xem báo cáo audit**:
 ```bash
@@ -221,6 +259,6 @@ Kết quả trả về JSON chi tiết số lượng tệp tin đã xóa (`delet
 
 ---
 
-## 📄 License
+## License
 
 Dự án được phát hành theo giấy phép **MIT License**. Chi tiết xem tại [LICENSE](LICENSE).

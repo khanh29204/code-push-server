@@ -5,3 +5,8 @@ target/
 .gitignore
 data/
 data-storage/
+*.md
+postman.json
+.claude/
+.github/
+
