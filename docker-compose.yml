@@ -1,22 +1,21 @@
-version: '3.7'
 services:
   server:
     image: ghcr.io/khanh29204/code-push-server:latest
+    container_name: code-push-server
     volumes:
       - ./data:/data
     env_file:
       - .env
     ports:
       - '3000:3000'
-    depends_on:
-      - redis
-    # Lệnh chạy khởi tạo DB trước khi start server
-    command: sh -c "bun bin/db.js init && bun bin/www.js --app-name=code-push-server"
+    networks:
+      - redis_private_net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
-
-  # MySQL service đã bị xóa
-
-  redis:
-    image: redis:latest
-    volumes:
-      - ./data-redis:/data
+networks:
+  redis_private_net:
+    external: true

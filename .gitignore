@@ -1,21 +1,3 @@
-# Logs
-logs
-*.log
 .env
-# Runtime data
-pids
-*.pid
-*.seed
-*.DS_Store
-bin/
-.nyc_output/
-
-# deps
-node_modules/
-
-
-# vs code
-.history
-.idea
+target
 data
-data-redis

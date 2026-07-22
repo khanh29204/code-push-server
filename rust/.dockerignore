@@ -1,7 +1,0 @@
-target/
-**/*.rs.bk
-.env
-.git/
-.gitignore
-data/
-data-storage/
