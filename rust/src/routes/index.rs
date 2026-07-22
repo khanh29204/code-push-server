@@ -22,11 +22,11 @@ pub fn router() -> Router<AppState> {
 }
 
 async fn index() -> Html<String> {
-    Html(std::fs::read_to_string("../public/html/index.html").unwrap_or_else(|_| "".into()))
+    Html(crate::utils::common::read_public_html("index.html"))
 }
 
 async fn tokens() -> Html<String> {
-    Html(std::fs::read_to_string("../public/html/tokens.html").unwrap_or_else(|_| "".into()))
+    Html(crate::utils::common::read_public_html("tokens.html"))
 }
 
 async fn authenticated(_user: crate::routes::middleware::AuthUser) -> Json<serde_json::Value> {

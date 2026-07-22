@@ -8,9 +8,14 @@ services:
       - .env
     ports:
       - '3000:3000'
-    command: sh -c "bun bin/www.js --app-name=code-push-server"
     networks:
       - redis_private_net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 networks:
   redis_private_net:
     external: true

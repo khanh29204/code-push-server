@@ -4,6 +4,28 @@ use std::path::Path;
 use tokio::fs;
 use zip::ZipArchive;
 
+/// Resolve the static Web UI directory the same way `main.rs` does: honour the
+/// PUBLIC_DIR env-var, otherwise fall back to `./public` (Docker WORKDIR /app)
+/// and `../public` (local dev where the binary runs from the `rust/` dir).
+pub fn public_dir() -> String {
+    if let Ok(dir) = std::env::var("PUBLIC_DIR") {
+        return dir;
+    }
+    for candidate in ["./public", "../public"] {
+        if Path::new(candidate).is_dir() {
+            return candidate.to_string();
+        }
+    }
+    "./public".to_string()
+}
+
+/// Read an HTML page from `<public_dir>/html/<name>`, returning an empty string
+/// if the file cannot be read (mirrors the previous fallback behaviour).
+pub fn read_public_html(name: &str) -> String {
+    let path = format!("{}/html/{}", public_dir(), name);
+    std::fs::read_to_string(&path).unwrap_or_default()
+}
+
 pub fn parse_version(version_no: &str) -> String {
     let re_3 = Regex::new(r"^([0-9]{1,3})\.([0-9]{1,5})\.([0-9]{1,10})$").unwrap();
     let re_2 = Regex::new(r"^([0-9]{1,3})\.([0-9]{1,5})$").unwrap();

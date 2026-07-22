@@ -24,11 +24,11 @@ pub struct EmailQuery {
 }
 
 async fn password_page() -> Html<String> {
-    Html(std::fs::read_to_string("../public/html/password.html").unwrap_or_else(|_| "".into()))
+    Html(crate::utils::common::read_public_html("password.html"))
 }
 
 async fn login_page(Query(_query): Query<EmailQuery>) -> Html<String> {
-    Html(std::fs::read_to_string("../public/html/login.html").unwrap_or_else(|_| "".into()))
+    Html(crate::utils::common::read_public_html("login.html"))
 }
 
 async fn link_redirect() -> Redirect {
@@ -40,15 +40,14 @@ async fn register_page(
     Query(_query): Query<EmailQuery>,
 ) -> axum::response::Response {
     if state.config.allow_registration {
-        Html(std::fs::read_to_string("../public/html/register.html").unwrap_or_else(|_| "".into()))
-            .into_response()
+        Html(crate::utils::common::read_public_html("register.html")).into_response()
     } else {
         Redirect::to("/auth/login").into_response()
     }
 }
 
 async fn confirm_page(Query(_query): Query<EmailQuery>) -> Html<String> {
-    Html(std::fs::read_to_string("../public/html/confirm.html").unwrap_or_else(|_| "".into()))
+    Html(crate::utils::common::read_public_html("confirm.html"))
 }
 
 async fn logout() -> &'static str {
