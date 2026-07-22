@@ -44,10 +44,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let local_storage_dir = config.local_storage_dir.clone();
 
-    // Static Web UI directory. Defaults to "../public" (matches the Docker
-    // WORKDIR /app/rust layout where UI files live at /app/public), but can be
-    // overridden via PUBLIC_DIR so it does not depend on the current working dir.
-    let public_dir = std::env::var("PUBLIC_DIR").unwrap_or_else(|_| "../public".to_string());
+    // Static Web UI directory. Tries the PUBLIC_DIR env-var first, then falls
+    // back to common relative locations so the same binary works both in local
+    // development (where public/ is at ../public relative to the rust/ dir)
+    // and inside Docker (WORKDIR /app, public at ./public).
+    let public_dir = std::env::var("PUBLIC_DIR").unwrap_or_else(|_| {
+        for candidate in &["./public"] {
+            if std::path::Path::new(candidate).is_dir() {
+                return candidate.to_string();
+            }
+        }
+        "./public".to_string()
+    });
 
     // Create AppState
     let state = AppState {

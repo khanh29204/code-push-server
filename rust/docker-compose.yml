@@ -1,9 +1,9 @@
 services:
   server:
     image: ghcr.io/khanh29204/code-push-server:latest
-    container_name: code_push_server
+    container_name: code-push-server
     volumes:
-      - ./data:/app/data
+      - ./data:/data
     env_file:
       - .env
     ports:

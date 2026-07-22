@@ -5,7 +5,7 @@ use crate::models::user_tokens::UserTokens;
 use crate::models::users::User;
 use crate::services::email_manager::EmailManager;
 use crate::utils::security::{md5_hash, password_hash_sync, password_verify_sync, rand_token};
-use chrono::{Duration, Local, NaiveTime, Utc};
+use chrono::{Duration, NaiveTime, Utc};
 use redis::AsyncCommands;
 use sqlx::{Row, SqlitePool};
 
@@ -129,8 +129,8 @@ impl AccountManager {
         created_by: &str,
         description: &str,
     ) -> Result<(), AppError> {
-        let expires_at = Local::now().naive_local() + Duration::milliseconds(ttl);
-        let created_at = Local::now().naive_local();
+        let expires_at = Utc::now().naive_utc() + Duration::milliseconds(ttl);
+        let created_at = Utc::now().naive_utc();
 
         sqlx::query("INSERT INTO user_tokens (uid, name, tokens, description, created_by, is_session, created_at, expires_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?)")
             .bind(uid)
@@ -198,11 +198,11 @@ impl AccountManager {
                 let login_key = format!("{}{}", LOGIN_LIMIT_PRE, u.id);
                 let is_exists: bool = redis.exists(&login_key).await.unwrap_or(false);
                 if !is_exists {
-                    let now = Local::now();
+                    let now = Utc::now();
                     let end_of_day = now
                         .date_naive()
                         .and_time(NaiveTime::from_hms_opt(23, 59, 59).unwrap())
-                        .and_local_timezone(Local)
+                        .and_local_timezone(Utc)
                         .unwrap();
                     let expires = (end_of_day.timestamp() - now.timestamp()).max(0) as u64;
                     let _: () = redis.set_ex(&login_key, 1, expires).await.unwrap_or(());
