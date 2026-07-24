@@ -8,68 +8,117 @@
   <meta name="keywords" content="code-push-server,code-push,react-native,cordova">
   <meta name="description"
     content="CodePush service is hotupdate services which adapter react-native-code-push and cordova-plugin-code-push">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       theme: {
         extend: {
-          colors: { brand: { 50: '#eef2ff', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca' } },
-          fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'] }
+          colors: {
+            primary: { DEFAULT: '#6750A4', container: '#EADDFF', on: '#FFFFFF', onContainer: '#21005D' },
+            secondary: { DEFAULT: '#625B71', container: '#E8DEF8', on: '#FFFFFF', onContainer: '#1D192B' },
+            tertiary: { DEFAULT: '#7D5260', container: '#FFD8E4', on: '#FFFFFF', onContainer: '#31111D' },
+            error: { DEFAULT: '#B3261E', container: '#F9DEDC', on: '#FFFFFF', onContainer: '#410E0B' },
+            surface: {
+              DEFAULT: '#FEF7FF', dim: '#DED8E1', bright: '#FEF7FF',
+              container: '#F3EDF7', containerLow: '#F7F2FA', containerHigh: '#ECE6F0', containerHighest: '#E6E0E9',
+              variant: '#E7E0EC', inverse: '#322F35'
+            },
+            onSurface: { DEFAULT: '#1D1B20', variant: '#49454F', inverse: '#F5EFF7' },
+            outline: { DEFAULT: '#79747E', variant: '#CAC4D0' },
+            // Backward-compatible alias so existing `brand-*` classes keep working.
+            brand: { 50: '#EADDFF', 100: '#EADDFF', 500: '#6750A4', 600: '#6750A4', 700: '#4F378B' }
+          },
+          fontFamily: { sans: ['Roboto', 'Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Helvetica', 'Arial', 'sans-serif'] },
+          borderRadius: { sm: '0.5rem', DEFAULT: '0.75rem', lg: '1rem', xl: '1.75rem', '2xl': '1.75rem' },
+          boxShadow: {
+            'm3-1': '0 1px 2px 0 rgba(0,0,0,0.30), 0 1px 3px 1px rgba(0,0,0,0.15)',
+            'm3-2': '0 1px 2px 0 rgba(0,0,0,0.30), 0 2px 6px 2px rgba(0,0,0,0.15)',
+            'm3-3': '0 4px 8px 3px rgba(0,0,0,0.15), 0 1px 3px 0 rgba(0,0,0,0.30)'
+          }
         }
       }
     }
   </script>
+  <style>
+    .material-symbols-rounded { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; line-height: 1; }
+    /* M3 filled text field */
+    .m3-field {
+      width: 100%;
+      background-color: #E6E0E9;
+      color: #1D1B20;
+      border: 0;
+      border-bottom: 1px solid #79747E;
+      border-top-left-radius: 0.5rem;
+      border-top-right-radius: 0.5rem;
+      padding: 0.875rem 1rem;
+      font-size: 1rem;
+      transition: background-color .15s, border-color .15s, box-shadow .15s;
+    }
+    .m3-field::placeholder { color: #49454F; }
+    .m3-field:hover { background-color: #E0DAE6; }
+    .m3-field:focus { outline: none; border-bottom: 2px solid #6750A4; background-color: #ECE6F0; }
+    /* M3 button base + state layer */
+    .m3-btn {
+      position: relative; display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+      border-radius: 9999px; padding: .625rem 1.5rem; font-weight: 500; font-size: .875rem; letter-spacing: .01em;
+      cursor: pointer; border: 0; transition: box-shadow .15s, background-color .15s; overflow: hidden; user-select: none;
+    }
+    .m3-btn::after {
+      content: ''; position: absolute; inset: 0; background: currentColor; opacity: 0; transition: opacity .15s;
+    }
+    .m3-btn:hover::after { opacity: .08; }
+    .m3-btn:active::after { opacity: .12; }
+    .m3-btn-filled { background-color: #6750A4; color: #fff; }
+    .m3-btn-filled:hover { box-shadow: 0 1px 2px 0 rgba(0,0,0,.30), 0 1px 3px 1px rgba(0,0,0,.15); }
+    .m3-btn-tonal { background-color: #E8DEF8; color: #1D192B; }
+    .m3-btn-outlined { background-color: transparent; color: #6750A4; border: 1px solid #79747E; }
+    .m3-btn-text { background-color: transparent; color: #6750A4; padding-left: 1rem; padding-right: 1rem; }
+  </style>
 </head>
 
-<body class="min-h-screen bg-slate-50 text-slate-800 antialiased">
+<body class="min-h-screen bg-surface-dim text-onSurface antialiased">
   <div class="min-h-screen flex items-center justify-center px-4 py-12">
     <div class="w-full max-w-md">
       <!-- Brand -->
       <div class="flex flex-col items-center mb-8">
-        <div class="h-14 w-14 rounded-2xl bg-brand-600 flex items-center justify-center shadow-lg shadow-brand-600/30">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-white" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2v6" />
-            <path d="M4.93 10.93 9 15" />
-            <path d="M2 18h6" />
-            <path d="M22 6h-6" />
-            <path d="M15 9l4.07-4.07" />
-            <circle cx="12" cy="18" r="4" />
-          </svg>
+        <div class="h-16 w-16 rounded-xl bg-primary-container text-primary-onContainer flex items-center justify-center shadow-m3-1">
+          <span class="material-symbols-rounded" style="font-size:32px">rocket_launch</span>
         </div>
-        <h1 class="mt-4 text-xl font-semibold text-slate-900">CodePush Server</h1>
+        <h1 class="mt-4 text-2xl font-medium text-onSurface">CodePush Server</h1>
       </div>
 
       <!-- Card -->
-      <div class="bg-white rounded-2xl shadow-xl shadow-slate-200/60 border border-slate-100 p-8">
+      <div class="bg-surface-containerLow rounded-xl shadow-m3-1 border border-outline-variant p-6 sm:p-8">
         <form class="form-signin" id="form" method="post">
-          <h2 class="form-signin-heading text-lg font-semibold text-slate-900 mb-1" data-i18n="Please sign in">Please
+          <h2 class="form-signin-heading text-xl font-medium text-onSurface mb-1" data-i18n="Please sign in">Please
             sign in</h2>
-          <p class="text-sm text-slate-500 mb-6">Access your hot-update dashboard.</p>
+          <p class="text-sm text-onSurface-variant mb-6">Access your hot-update dashboard.</p>
 
           <div class="space-y-4">
             <div>
-              <label class="block text-sm font-medium text-slate-700 mb-1.5" for="inputEmail">email address／username</label>
-              <input
-                class="form-control block w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-slate-900 placeholder-slate-400 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 focus:outline-none transition"
-                id="inputEmail" type="text" name="account" placeholder="email address／username" required autofocus>
+              <label class="block text-sm font-medium text-onSurface-variant mb-1.5" for="inputEmail">email address／username</label>
+              <input class="form-control m3-field" id="inputEmail" type="text" name="account"
+                placeholder="email address／username" required autofocus>
             </div>
             <div>
-              <label class="block text-sm font-medium text-slate-700 mb-1.5" for="inputPassword" data-i18n="password">password</label>
-              <input
-                class="form-control block w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-slate-900 placeholder-slate-400 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 focus:outline-none transition"
-                id="inputPassword" type="password" name="password" placeholder="password" required>
+              <label class="block text-sm font-medium text-onSurface-variant mb-1.5" for="inputPassword" data-i18n="password">password</label>
+              <input class="form-control m3-field" id="inputPassword" type="password" name="password"
+                placeholder="password" required>
             </div>
           </div>
 
-          <a class="btn btn-lg btn-primary btn-block mt-6 inline-flex w-full cursor-pointer items-center justify-center rounded-lg bg-brand-600 px-4 py-2.5 font-medium text-white shadow-sm hover:bg-brand-700 focus:ring-2 focus:ring-brand-500/40 focus:outline-none transition"
-            id="submitBtn" data-i18n="Log in">Log in</a>
-          <a class="btn btn-lg btn-primary btn-block mt-3 inline-flex w-full cursor-pointer items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:ring-2 focus:ring-brand-500/30 focus:outline-none transition"
-            id="registerBtn" href="/auth/register" style="display: none;" data-i18n="Register">Register</a>
+          <a class="btn m3-btn m3-btn-filled w-full mt-6 py-3" id="submitBtn" data-i18n="Log in">Log in</a>
+          <a class="btn m3-btn m3-btn-text w-full mt-3 py-3" id="registerBtn" href="/auth/register"
+            style="display: none;" data-i18n="Register">Register</a>
         </form>
       </div>
 
-      <p class="text-center text-xs text-slate-400 mt-6">react native / cordova hot update server</p>
+      <p class="text-center text-xs text-onSurface-variant mt-6">react native / cordova hot update server</p>
     </div>
   </div>
 </body>
