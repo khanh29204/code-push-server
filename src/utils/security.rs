@@ -9,8 +9,8 @@ use tokio::fs;
 use tokio::io::AsyncReadExt;
 use walkdir::WalkDir;
 
-pub const ANDROID: i64 = 1;
-pub const IOS: i64 = 2;
+pub const ANDROID: i64 = 2;
+pub const IOS: i64 = 1;
 
 pub fn md5_hash(str: &str) -> String {
     let digest = md5::compute(str);
