@@ -12,24 +12,13 @@ impl DeploymentsManager {
         deployments_id: i64,
         limit: usize,
     ) -> Result<Vec<Packages>, AppError> {
-        let history = sqlx::query_as::<_, crate::models::deployments_history::DeploymentHistory>(
-            "SELECT * FROM deployments_history WHERE deployment_id = ? ORDER BY id DESC LIMIT ?",
+        let packages = sqlx::query_as::<_, Packages>(
+            "SELECT p.* FROM packages p JOIN deployments_history dh ON p.id = dh.package_id WHERE dh.deployment_id = ? ORDER BY dh.id DESC LIMIT ?"
         )
         .bind(deployments_id)
         .bind(limit as i64)
         .fetch_all(pool)
         .await?;
-
-        let mut packages = Vec::new();
-        for h in history {
-            if let Some(pkg) = sqlx::query_as::<_, Packages>("SELECT * FROM packages WHERE id = ?")
-                .bind(h.package_id)
-                .fetch_optional(pool)
-                .await?
-            {
-                packages.push(pkg);
-            }
-        }
 
         Ok(packages)
     }

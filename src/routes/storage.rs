@@ -252,15 +252,15 @@ pub async fn delete_storage_audit(
 
     let mut valid_hashes = std::collections::HashSet::new();
     for pkg in &db_packages {
-        if let Some(blob_url) = &pkg.blob_url {
-            if !blob_url.is_empty() {
-                valid_hashes.insert(blob_url.clone());
-            }
+        if let Some(blob_url) = &pkg.blob_url
+            && !blob_url.is_empty()
+        {
+            valid_hashes.insert(blob_url.clone());
         }
-        if let Some(manifest_url) = &pkg.manifest_blob_url {
-            if !manifest_url.is_empty() {
-                valid_hashes.insert(manifest_url.clone());
-            }
+        if let Some(manifest_url) = &pkg.manifest_blob_url
+            && !manifest_url.is_empty()
+        {
+            valid_hashes.insert(manifest_url.clone());
         }
     }
 
@@ -274,17 +274,17 @@ pub async fn delete_storage_audit(
     {
         if entry.file_type().is_file() {
             let file_name = entry.file_name().to_string_lossy().into_owned();
-            if !valid_hashes.contains(&file_name) {
-                if let Ok(metadata) = entry.metadata() {
-                    let modified = metadata
-                        .modified()
-                        .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
-                    if modified < ten_mins_ago {
-                        freed_bytes += metadata.len();
-                        let path = entry.path().to_path_buf();
-                        if tokio::fs::remove_file(&path).await.is_ok() {
-                            deleted_files.push(path.to_string_lossy().into_owned());
-                        }
+            if !valid_hashes.contains(&file_name)
+                && let Ok(metadata) = entry.metadata()
+            {
+                let modified = metadata
+                    .modified()
+                    .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+                if modified < ten_mins_ago {
+                    freed_bytes += metadata.len();
+                    let path = entry.path().to_path_buf();
+                    if tokio::fs::remove_file(&path).await.is_ok() {
+                        deleted_files.push(path.to_string_lossy().into_owned());
                     }
                 }
             }

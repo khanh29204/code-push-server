@@ -85,12 +85,13 @@ async fn create_access_key(
     let pool = &state.db.pool;
     let manager = crate::services::account_manager::AccountManager;
 
-    if let Some(_) = crate::services::account_manager::AccountManager::is_exist_access_key_name(
+    if crate::services::account_manager::AccountManager::is_exist_access_key_name(
         pool,
         user.id,
         &payload.friendly_name,
     )
     .await?
+    .is_some()
     {
         return Err(AppError::General(format!(
             "The access key \"{}\" already exists.",
