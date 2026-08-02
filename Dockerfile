@@ -1,29 +1,26 @@
-FROM rust:1.90-alpine AS base
-
+FROM rust:1.90-alpine AS chef
 RUN apk add --no-cache musl-dev pkgconfig openssl-dev openssl-libs-static
 RUN rustup target add x86_64-unknown-linux-musl
-
-FROM base AS builder
+RUN cargo install cargo-chef
 
 WORKDIR /app
 
-COPY Cargo.toml Cargo.lock ./
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
 
-# Build dependencies only (cache layer)
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/app/target \
-    mkdir src && echo "fn main() {}" > src/main.rs \
-    && RUSTFLAGS="-C target-feature=+crt-static" cargo build --release --target x86_64-unknown-linux-musl \
-    && rm -rf src
+FROM chef AS builder
+COPY --from=planner /app/recipe.json recipe.json
+# Build dependencies - Layer này được Docker cache 100% khi Cargo.toml/Cargo.lock không thay đổi
+RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry \
+    --mount=type=cache,id=cargo-target,target=/app/target \
+    RUSTFLAGS="-C target-feature=+crt-static" cargo chef cook --release --target x86_64-unknown-linux-musl --recipe-path recipe.json
 
-# Copy real source và build
-COPY src ./src
-
-# Touch main.rs và copy binary từ target cache ra
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/app/target \
-    touch src/main.rs \
-    && RUSTFLAGS="-C target-feature=+crt-static" cargo build --release --target x86_64-unknown-linux-musl \
+# Copy source code thực tế và build ứng dụng
+COPY . .
+RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry \
+    --mount=type=cache,id=cargo-target,target=/app/target \
+    RUSTFLAGS="-C target-feature=+crt-static" cargo build --release --target x86_64-unknown-linux-musl \
     && cp /app/target/x86_64-unknown-linux-musl/release/rust /app/code-push-server
 
 FROM scratch AS runner
