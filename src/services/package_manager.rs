@@ -263,7 +263,7 @@ impl PackageManager {
             .await?;
 
         // Create history
-        sqlx::query("INSERT INTO deployments_history (deployment_id, package_id, created_at, updated_at) VALUES (?, ?, datetime('now'), datetime('now'))")
+        sqlx::query("INSERT INTO deployments_history (deployment_id, package_id, created_at) VALUES (?, ?, datetime('now'))")
             .bind(deployment_id)
             .bind(package.id)
             .execute(&mut *tx)
