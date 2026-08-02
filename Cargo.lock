@@ -2321,7 +2321,6 @@ dependencies = [
  "jsonwebtoken",
  "lettre",
  "md5",
- "once_cell",
  "rand 0.8.7",
  "redis",
  "regex",
