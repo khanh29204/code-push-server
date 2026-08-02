@@ -1,7 +1,6 @@
-FROM rust:1.90-alpine AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-alpine AS chef
 RUN apk add --no-cache musl-dev pkgconfig openssl-dev openssl-libs-static
 RUN rustup target add x86_64-unknown-linux-musl
-RUN cargo install cargo-chef
 
 WORKDIR /app
 
