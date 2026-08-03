@@ -18,6 +18,7 @@ use tower::Layer;
 use tower_http::trace::TraceLayer;
 use tracing::info;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
+use axum::extract::DefaultBodyLimit;
 
 use crate::config::AppConfig;
 use crate::core::db::{AppState, Db};
@@ -81,6 +82,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             "/download",
             tower_http::services::ServeDir::new(local_storage_dir),
         )
+        .layer(DefaultBodyLimit::max(50 * 1024 * 1024))
         .fallback_service(tower_http::services::ServeDir::new(&public_dir))
         .layer(
             TraceLayer::new_for_http()
