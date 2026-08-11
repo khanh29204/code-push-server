@@ -16,7 +16,8 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tower::Layer;
 use tower_http::trace::TraceLayer;
-use tracing::info;
+use tracing::{Level, info};
+use tracing_subscriber::fmt::writer::MakeWriterExt;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 use axum::extract::DefaultBodyLimit;
 
@@ -29,11 +30,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Initialize tracing. Default log level is `info`, and we enable
     // request tracing at `info` level so incoming HTTP requests are logged.
     // Override with the RUST_LOG env-var, e.g. RUST_LOG=debug.
+    //
+    // WARN/ERROR events go to stderr, everything else to stdout, so the two
+    // streams can be redirected into separate log files by the process
+    // supervisor (see the entrypoint in docker-compose.yml).
     tracing_subscriber::registry()
         .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| {
             EnvFilter::new("info,tower_http=info")
         }))
-        .with(tracing_subscriber::fmt::layer())
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_ansi(false)
+                .with_writer(
+                    std::io::stderr
+                        .with_max_level(Level::WARN)
+                        .or_else(std::io::stdout),
+                ),
+        )
         .init();
 
     // Load configuration
@@ -97,11 +110,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     |response: &axum::http::Response<_>,
                      latency: std::time::Duration,
                      _span: &tracing::Span| {
-                        tracing::info!(
-                            status = %response.status(),
-                            latency = ?latency,
-                            "response"
-                        );
+                        let status = response.status();
+                        // 4xx/5xx are logged at ERROR so they land in the
+                        // error log file rather than the access log.
+                        if status.is_client_error() || status.is_server_error() {
+                            tracing::error!(
+                                status = %status,
+                                latency = ?latency,
+                                "response"
+                            );
+                        } else {
+                            tracing::info!(
+                                status = %status,
+                                latency = ?latency,
+                                "response"
+                            );
+                        }
                     },
                 ),
         )

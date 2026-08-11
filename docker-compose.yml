@@ -10,6 +10,14 @@ services:
       - '3000:3000'
     networks:
       - redis_private_net
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >
+        mkdir -p /data/logs &&
+        exec /app/code-push-server
+        1>> /data/logs/combined.log
+        2>> /data/logs/combined-error.log
     logging:
       driver: json-file
       options:

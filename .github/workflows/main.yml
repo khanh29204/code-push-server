@@ -10,7 +10,6 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "Dockerfile"
-      - "docker-compose.yml"
       - ".dockerignore"
       - ".github/workflows/main.yml"
 
@@ -35,27 +34,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Cache cargo cache-mount dirs
-        uses: actions/cache@v4
-        id: cargo-cache
-        with:
-          path: |
-            var-cache-cargo-registry
-            var-cache-cargo-target
-          key: cargo-${{ hashFiles('Cargo.lock') }}
-          restore-keys: |
-            cargo-
-
-      - name: Inject cache mounts into build
-        uses: reproducible-containers/buildkit-cache-dance@v3
-        with:
-          cache-map: |
-            {
-              "var-cache-cargo-registry": "/usr/local/cargo/registry",
-              "var-cache-cargo-target": "/app/target"
-            }
-          skip-extraction: ${{ steps.cargo-cache.outputs.cache-hit }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
