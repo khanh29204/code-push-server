@@ -11,6 +11,9 @@ const CONTENTS_NAME: &str = "contents";
 
 pub struct PackageInfo {
     pub package_hash: String,
+    /// Root of the extracted package. Callers work off `content_path` and
+    /// `manifest_file_path`; kept for parity with the upstream shape.
+    #[allow(dead_code)]
     pub path: String,
     pub content_path: String,
     pub manifest_file_path: String,
@@ -150,6 +153,9 @@ impl DataCenterManager {
         ))
     }
 
+    /// Ported from the upstream data-center manager. No route wipes the temp
+    /// extraction dir yet; diff generation cleans up after itself.
+    #[allow(dead_code)]
     pub fn delete_package_tmp(config: &crate::config::AppConfig, package_hash: &str) -> bool {
         let data_dir = Self::get_data_dir(config);
         let package_hash_path = Path::new(&data_dir).join(package_hash);
@@ -176,6 +182,9 @@ impl DataCenterManager {
         false
     }
 
+    /// Ported from the upstream data-center manager, where local storage and
+    /// the temp dir are the same directory.
+    #[allow(dead_code)]
     pub fn delete_package_storage(config: &crate::config::AppConfig, package_hash: &str) -> bool {
         Self::delete_package_tmp(config, package_hash)
     }

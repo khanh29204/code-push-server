@@ -2,7 +2,7 @@ use axum::{
     Json,
     extract::{Path, State},
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::core::app_error::AppError;
 use crate::core::db::AppState;

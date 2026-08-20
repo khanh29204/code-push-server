@@ -7,7 +7,7 @@ use crate::services::email_manager::EmailManager;
 use crate::utils::security::{md5_hash, password_hash_sync, password_verify_sync, rand_token};
 use chrono::{Duration, NaiveTime, Utc};
 use redis::AsyncCommands;
-use sqlx::{Row, SqlitePool};
+use sqlx::SqlitePool;
 
 const LOGIN_LIMIT_PRE: &str = "LOGIN_LIMIT_PRE_";
 const REGISTER_CODE: &str = "REGISTER_CODE_";
@@ -30,6 +30,9 @@ pub struct AccessKeyDetail {
 pub struct AccountManager;
 
 impl AccountManager {
+    /// Port of the upstream `collaboratorCan`. Every route currently needs
+    /// owner rights, so only `owner_can` is wired up.
+    #[allow(dead_code)]
     pub async fn collaborator_can(
         pool: &SqlitePool,
         uid: i64,

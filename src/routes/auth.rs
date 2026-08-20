@@ -18,8 +18,11 @@ pub fn router() -> Router<AppState> {
         .route("/logout", post(logout))
 }
 
+/// Query of the login/register pages. The pages are static HTML that read the
+/// param client-side, so the field only documents what the route accepts.
 #[derive(Deserialize)]
 pub struct EmailQuery {
+    #[allow(dead_code)]
     pub email: Option<String>,
 }
 

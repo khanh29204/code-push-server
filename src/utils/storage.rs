@@ -47,6 +47,9 @@ impl StorageManager {
         Ok(())
     }
 
+    /// Counterpart of `upload_file`. Unused so far: packages are served
+    /// straight off disk by the /download ServeDir.
+    #[allow(dead_code)]
     pub async fn download_file(
         &self,
         key: &str,

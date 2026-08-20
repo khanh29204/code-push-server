@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
 use crate::core::app_error::AppError;
+use crate::core::consts::{DEPLOYMENT_FAILED, DEPLOYMENT_SUCCEEDED};
 use crate::models::deployments::Deployment;
 use crate::models::deployments_versions::DeploymentVersion;
 use crate::models::packages::Packages;
@@ -32,25 +33,22 @@ impl ClientManager {
     async fn compute_merged_info(
         pool: &SqlitePool,
         deployment_id: i64,
-        deployment_version_id: i64,
         min_id: i64,
         target_id: i64,
     ) -> Result<(String, bool), AppError> {
         let has_mandatory: i64 = sqlx::query_scalar(
-            "SELECT count(*) FROM packages WHERE deployment_id = ? AND deployment_version_id = ? AND id > ? AND id <= ? AND is_disabled = 0 AND is_mandatory = 1"
+            "SELECT count(*) FROM packages WHERE deployment_id = ? AND id > ? AND id <= ? AND is_disabled = 0 AND is_mandatory = 1"
         )
         .bind(deployment_id)
-        .bind(deployment_version_id)
         .bind(min_id)
         .bind(target_id)
         .fetch_one(pool)
         .await?;
 
         let intermediate_packages = sqlx::query_as::<_, Packages>(
-            "SELECT * FROM packages WHERE deployment_id = ? AND deployment_version_id = ? AND id > ? AND id <= ? AND is_disabled = 0 ORDER BY id DESC LIMIT 15"
+            "SELECT * FROM packages WHERE deployment_id = ? AND id > ? AND id <= ? AND is_disabled = 0 ORDER BY id DESC LIMIT 15"
         )
         .bind(deployment_id)
-        .bind(deployment_version_id)
         .bind(min_id)
         .bind(target_id)
         .fetch_all(pool)
@@ -81,12 +79,19 @@ impl ClientManager {
         redis: &bb8_redis::bb8::Pool<bb8_redis::RedisConnectionManager>,
         deployment_key: &str,
     ) {
-        let cache_key = format!("UPDATE_CHECK:{}:*", deployment_key);
+        // Clear both the update_check result cache and the merged-description
+        // cache: editing a release can change an intermediate description.
+        let patterns = [
+            format!("UPDATE_CHECK:{}:*", deployment_key),
+            format!("MERGED_INFO:{}:*", deployment_key),
+        ];
         if let Ok(mut conn) = redis.get().await {
             use bb8_redis::redis::AsyncCommands;
-            if let Ok(keys) = conn.keys::<_, Vec<String>>(&cache_key).await {
-                for key in keys {
-                    let _: () = conn.del(key).await.unwrap_or(());
+            for pattern in &patterns {
+                if let Ok(keys) = conn.keys::<_, Vec<String>>(pattern).await {
+                    for key in keys {
+                        let _: () = conn.del(key).await.unwrap_or(());
+                    }
                 }
             }
         }
@@ -235,7 +240,6 @@ impl ClientManager {
                     let (desc, mand) = Self::compute_merged_info(
                         pool,
                         target_package.deployment_id,
-                        deployments_version.id,
                         min_id,
                         target_package.id,
                     )
@@ -295,12 +299,20 @@ impl ClientManager {
         Ok(None)
     }
 
-    pub async fn report_status_download(
+    /// Resolve the package a status report refers to.
+    ///
+    /// Bails out before touching the database when either key is empty: the
+    /// CodePush client omits `label` entirely while it is still running the
+    /// store binary, and such a report can never match a package.
+    async fn get_packages_info(
         pool: &SqlitePool,
         deployment_key: &str,
         label: &str,
-        client_unique_id: &str,
-    ) -> Result<(), AppError> {
+    ) -> Result<Packages, AppError> {
+        if deployment_key.is_empty() || label.is_empty() {
+            return Err(AppError::new("please input deploymentKey and label"));
+        }
+
         let dep =
             sqlx::query_as::<_, Deployment>("SELECT * FROM deployments WHERE deployment_key = ?")
                 .bind(deployment_key)
@@ -308,14 +320,23 @@ impl ClientManager {
                 .await?
                 .ok_or_else(|| AppError::new("does not found deployment"))?;
 
-        let package = sqlx::query_as::<_, Packages>(
+        sqlx::query_as::<_, Packages>(
             "SELECT * FROM packages WHERE deployment_id = ? AND label = ?",
         )
         .bind(dep.id)
         .bind(label)
         .fetch_optional(pool)
         .await?
-        .ok_or_else(|| AppError::new("does not found packages"))?;
+        .ok_or_else(|| AppError::new("does not found packages"))
+    }
+
+    pub async fn report_status_download(
+        pool: &SqlitePool,
+        deployment_key: &str,
+        label: &str,
+        client_unique_id: &str,
+    ) -> Result<(), AppError> {
+        let package = Self::get_packages_info(pool, deployment_key, label).await?;
 
         let mut tx = pool.begin().await?;
 
@@ -346,25 +367,11 @@ impl ClientManager {
         previous_deployment_key: Option<&str>,
         previous_label_or_app_version: Option<&str>,
     ) -> Result<(), AppError> {
-        let dep =
-            sqlx::query_as::<_, Deployment>("SELECT * FROM deployments WHERE deployment_key = ?")
-                .bind(deployment_key)
-                .fetch_optional(pool)
-                .await?
-                .ok_or_else(|| AppError::new("does not found deployment"))?;
-
-        let package = sqlx::query_as::<_, Packages>(
-            "SELECT * FROM packages WHERE deployment_id = ? AND label = ?",
-        )
-        .bind(dep.id)
-        .bind(label)
-        .fetch_optional(pool)
-        .await?
-        .ok_or_else(|| AppError::new("does not found packages"))?;
+        let package = Self::get_packages_info(pool, deployment_key, label).await?;
 
         let status = match status_opt {
-            Some("DeploymentSucceeded") => 1,
-            Some("DeploymentFailed") => 2,
+            Some("DeploymentSucceeded") => DEPLOYMENT_SUCCEEDED,
+            Some("DeploymentFailed") => DEPLOYMENT_FAILED,
             _ => 0,
         };
 
@@ -382,7 +389,7 @@ impl ClientManager {
             .execute(&mut *tx)
             .await?;
 
-            if status == 1 {
+            if status == DEPLOYMENT_SUCCEEDED {
                 sqlx::query(
                     "UPDATE packages_metrics SET installed = installed + 1, active = active + 1 WHERE package_id = ?"
                 )

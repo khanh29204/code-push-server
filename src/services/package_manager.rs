@@ -15,7 +15,7 @@ use crate::utils::qetag::calc_qetag;
 use crate::utils::security::{rand_token, upload_package_type};
 use crate::utils::storage::StorageManager;
 use serde::{Deserialize, Serialize};
-use sqlx::{Row, SqlitePool};
+use sqlx::SqlitePool;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use tokio::fs;
@@ -50,6 +50,9 @@ pub struct CreatePackageParams<'a> {
 }
 
 impl PackageManager {
+    /// Port of the upstream `getMetricsByPackageId`. The metrics endpoints read
+    /// the counters through deployments_manager instead.
+    #[allow(dead_code)]
     pub async fn get_metrics_by_package_id(
         pool: &SqlitePool,
         package_id: i64,
@@ -78,6 +81,9 @@ impl PackageManager {
         Ok(package)
     }
 
+    /// Port of the upstream `findLatestPackageInfoByDeployVersion`. Rollback
+    /// resolves its target with its own query, so nothing calls this yet.
+    #[allow(dead_code)]
     pub async fn find_latest_package_info_by_deploy_version(
         pool: &SqlitePool,
         deployments_versions_id: i64,
@@ -489,7 +495,7 @@ impl PackageManager {
         config: &crate::config::AppConfig,
         pool: &SqlitePool,
         storage: &StorageManager,
-        app_id: i64,
+        _app_id: i64,
         original_package: &Packages,
         num: i64,
     ) -> Result<(), AppError> {
@@ -796,7 +802,7 @@ impl PackageManager {
             }
         }
 
-        let (is_valid, min_version, max_version) = validator_version(&app_final_version);
+        let (is_valid, _, _) = validator_version(&app_final_version);
         if !is_valid {
             return Err(AppError::new(&format!(
                 "targetBinaryVersion {} not support.",
@@ -886,7 +892,7 @@ impl PackageManager {
             target_rollback.ok_or_else(|| AppError::new("no package can be rolled back."))?;
 
         let create_params = CreatePackageParams {
-            release_method: "Rollback",
+            release_method: RELEASE_METHOD_ROLLBACK,
             release_uid: rollback_uid,
             is_mandatory: rollback_package.is_mandatory,
             is_disabled: rollback_package.is_disabled,
@@ -925,12 +931,17 @@ impl PackageManager {
         Ok(packages)
     }
 
+    /// Port of the upstream `deletePackageByLabel`. Incomplete: it only checks
+    /// that the package exists and does not delete the row or its blobs, so it
+    /// is deliberately left unwired.
+    #[allow(dead_code)]
     pub async fn delete_package_by_label(
         pool: &SqlitePool,
         deployment_id: i64,
         label: &str,
     ) -> Result<(), AppError> {
-        let package_info = sqlx::query_as::<_, Packages>(
+        // Existence check only — the row itself is not needed.
+        sqlx::query_as::<_, Packages>(
             "SELECT * FROM packages WHERE deployment_id = ? AND label = ?",
         )
         .bind(deployment_id)

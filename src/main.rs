@@ -1,8 +1,3 @@
-#![allow(dead_code)]
-#![allow(unused_variables)]
-#![allow(unreachable_patterns)]
-#![allow(unused_imports)]
-
 mod config;
 mod core;
 mod models;
@@ -10,7 +5,6 @@ mod routes;
 mod services;
 mod utils;
 
-use axum::ServiceExt;
 use axum::{Router, routing::get};
 use std::net::SocketAddr;
 use std::sync::Arc;

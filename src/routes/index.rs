@@ -140,12 +140,14 @@ async fn update_check(
     Ok(Json(UpdateCheckResponse { update_info: rs }))
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
+/// Body of a `reportStatus/*` call. See the v0.1 counterpart for why every
+/// field must tolerate being absent.
+#[derive(Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
 pub struct ReportStatusBody {
-    pub client_unique_id: String,
-    pub label: String,
-    pub deployment_key: String,
+    pub client_unique_id: Option<String>,
+    pub label: Option<String>,
+    pub deployment_key: Option<String>,
     pub status: Option<String>,
     pub previous_deployment_key: Option<String>,
     pub previous_label_or_app_version: Option<String>,
@@ -153,13 +155,15 @@ pub struct ReportStatusBody {
 
 async fn report_status_download(
     State(state): State<AppState>,
-    Json(body): Json<ReportStatusBody>,
+    body: axum::body::Bytes,
 ) -> &'static str {
+    let body = serde_json::from_slice::<ReportStatusBody>(&body).unwrap_or_default();
+
     let _ = ClientManager::report_status_download(
         &state.db.pool,
-        &body.deployment_key,
-        &body.label,
-        &body.client_unique_id,
+        body.deployment_key.as_deref().unwrap_or(""),
+        body.label.as_deref().unwrap_or(""),
+        body.client_unique_id.as_deref().unwrap_or(""),
     )
     .await;
 
@@ -168,13 +172,15 @@ async fn report_status_download(
 
 async fn report_status_deploy(
     State(state): State<AppState>,
-    Json(body): Json<ReportStatusBody>,
+    body: axum::body::Bytes,
 ) -> &'static str {
+    let body = serde_json::from_slice::<ReportStatusBody>(&body).unwrap_or_default();
+
     let _ = ClientManager::report_status_deploy(
         &state.db.pool,
-        &body.deployment_key,
-        &body.label,
-        &body.client_unique_id,
+        body.deployment_key.as_deref().unwrap_or(""),
+        body.label.as_deref().unwrap_or(""),
+        body.client_unique_id.as_deref().unwrap_or(""),
         body.status.as_deref(),
         body.previous_deployment_key.as_deref(),
         body.previous_label_or_app_version.as_deref(),

@@ -41,6 +41,11 @@ impl AppError {
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
+        // Every variant is mapped explicitly on purpose: the CodePush client
+        // expects `General` errors as 200 OK carrying a custom error body,
+        // while everything else is a genuine 4xx/5xx. Adding a variant without
+        // deciding its status should be a compile error, so there is no
+        // catch-all arm here.
         let (status, error_message) = match self {
             AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
             AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg),
@@ -51,12 +56,6 @@ impl IntoResponse for AppError {
             AppError::ZipError(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
             AppError::BoxDynError(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
             AppError::SerdeJson(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
-            // Since CodePush client expects 200 OK with custom error format or standard HTTP statuses depending on route,
-            // we default to OK with message for now for AppError::General, and 500 for others.
-            _ => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Internal server error".to_string(),
-            ),
         };
 
         let body = Json(json!({

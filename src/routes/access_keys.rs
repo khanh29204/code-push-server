@@ -83,7 +83,6 @@ async fn create_access_key(
     >,
 ) -> Result<Json<CreateAccessKeyResponse>, AppError> {
     let pool = &state.db.pool;
-    let manager = crate::services::account_manager::AccountManager;
 
     if crate::services::account_manager::AccountManager::is_exist_access_key_name(
         pool,

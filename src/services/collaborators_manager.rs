@@ -2,7 +2,7 @@ use crate::core::app_error::AppError;
 use crate::models::collaborators::Collaborator;
 use crate::models::users::User;
 use serde::{Deserialize, Serialize};
-use sqlx::{Row, SqlitePool};
+use sqlx::SqlitePool;
 use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize)]

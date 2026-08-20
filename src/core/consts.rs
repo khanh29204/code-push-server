@@ -27,4 +27,7 @@ pub const RELEASE_METHOD_UPLOAD: &str = "Upload";
 pub const RELEASE_METHOD_ROLLBACK: &str = "Rollback";
 
 pub const DIFF_MANIFEST_FILE_NAME: &str = "hotcodepush.json";
+/// Schema version the upstream server stamps into its `versions` table. Kept
+/// for parity; this port runs migrations instead of version-stamping.
+#[allow(dead_code)]
 pub const CURRENT_DB_VERSION: &str = "0.5.0";

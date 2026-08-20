@@ -2,6 +2,10 @@ use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
+/// Row of the `packages_metrics` table. Read back only by
+/// `PackageManager::get_metrics_by_package_id`, which no route calls yet; the
+/// counters themselves are bumped with raw UPDATE statements.
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct PackagesMetrics {
     pub id: i64,

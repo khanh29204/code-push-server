@@ -22,6 +22,9 @@ pub struct SmtpConfig {
 pub struct AppConfig {
     // Server
     pub port: u16,
+    /// Parsed from `LOG_LEVEL` for `.env` compatibility. Not wired up: the
+    /// tracing filter is driven by `RUST_LOG` (see main.rs).
+    #[allow(dead_code)]
     pub log_level: String,
 
     // Database
@@ -44,6 +47,9 @@ pub struct AppConfig {
     pub diff_nums: i32,   // Number of diff packages to generate (default 3)
     pub data_dir: String, // Temp dir for diff calculation
     pub update_check_cache: bool,
+    /// Parsed from `ROLLOUT_CLIENT_UNIQUE_ID_CACHE` for `.env` compatibility.
+    /// Not wired up: `ClientManager::chosen_man` always caches its verdict.
+    #[allow(dead_code)]
     pub rollout_client_unique_id_cache: bool,
 
     // SMTP (for sending registration codes)

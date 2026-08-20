@@ -63,12 +63,18 @@ pub struct AuditReport {
 struct DbPackage {
     id: i64,
     label: String,
+    /// Selected so the row mirrors the table, but the audit matches files by
+    /// blob URL rather than by package hash.
+    #[allow(dead_code)]
     package_hash: Option<String>,
     blob_url: Option<String>,
     manifest_blob_url: Option<String>,
 }
 
 struct DiskFileInfo {
+    /// Filename on disk, which is the blob hash. Kept alongside the other
+    /// metadata for debugging; the report keys off `full_path`.
+    #[allow(dead_code)]
     hash: String,
     size: u64,
     full_path: String,

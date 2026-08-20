@@ -90,6 +90,8 @@ impl FromRequestParts<AppState> for AuthUser {
             struct Claims {
                 uid: i64,
                 hash: String,
+                /// Validated by jsonwebtoken itself, never read here.
+                #[allow(dead_code)]
                 exp: usize,
             }
 
