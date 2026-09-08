@@ -1,5 +1,9 @@
-use axum::{Json, Router, extract::State, routing::get};
-use serde::Serialize;
+use axum::{
+    Json, Router,
+    extract::{Query, State},
+    routing::get,
+};
+use serde::{Deserialize, Serialize};
 
 use crate::core::app_error::AppError;
 use crate::core::db::AppState;
@@ -221,6 +225,16 @@ pub async fn storage_audit(
     Ok(Json(report))
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteAuditQuery {
+    /// When provided, deletes files on disk that belong to packages with this
+    /// label. The package records (and the rest of the audit history) stay in
+    /// the DB. When omitted, the endpoint falls back to deleting orphaned
+    /// files older than 10 minutes.
+    pub label: Option<String>,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeleteAuditResponse {
@@ -228,11 +242,21 @@ pub struct DeleteAuditResponse {
     pub deleted_count: usize,
     pub freed_size: String,
     pub deleted_files: Vec<String>,
+    /// Echoed back when the request targeted a specific label, so callers can
+    /// tell apart an "orphaned" sweep from a label-scoped one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    /// Number of packages in the DB that matched the supplied label. Useful
+    /// for confirming the API hit the rows the caller expected before the
+    /// files were removed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub matched_packages: Option<usize>,
 }
 
 pub async fn delete_storage_audit(
     _user: AuthUser,
     State(state): State<AppState>,
+    Query(query): Query<DeleteAuditQuery>,
 ) -> Result<Json<DeleteAuditResponse>, AppError> {
     if state.config.storage_type != "local" {
         return Err(AppError::new(&format!(
@@ -249,6 +273,105 @@ pub async fn delete_storage_audit(
         )));
     }
 
+    // A non-empty `?label=` flips the endpoint into a targeted sweep: only
+    // files referenced by packages carrying that label are removed. The
+    // package rows themselves are left intact, so the deployment history
+    // keeps working off the same labels.
+    if let Some(label) = query
+        .label
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        return delete_files_by_label(&state, storage_dir, label).await;
+    }
+
+    delete_orphaned_files(&state, storage_dir).await
+}
+
+/// Delete every blob/manifest file on disk that a package with the given
+/// label references. The `packages` rows, the metrics, the diff rows — all of
+/// the history — is preserved. Re-uploading the same label will re-create
+/// the files, so the missing files will show up in the next `GET /audit` run
+/// in the meantime.
+async fn delete_files_by_label(
+    state: &AppState,
+    storage_dir: &str,
+    label: &str,
+) -> Result<Json<DeleteAuditResponse>, AppError> {
+    let packages = sqlx::query_as::<_, DbPackage>(
+        "SELECT id, label, package_hash, blob_url, manifest_blob_url FROM packages WHERE label = ?",
+    )
+    .bind(label)
+    .fetch_all(&state.db.pool)
+    .await
+    .map_err(|e| AppError::new(&e.to_string()))?;
+
+    let matched_packages = packages.len();
+
+    // Multiple packages can share a single blob (e.g. a release that was
+    // promoted to another deployment), so we collect the unique hashes first
+    // and only attempt to delete each file once.
+    let mut hashes_to_delete = std::collections::HashSet::new();
+    for pkg in &packages {
+        if let Some(blob_url) = &pkg.blob_url
+            && !blob_url.is_empty()
+        {
+            hashes_to_delete.insert(blob_url.clone());
+        }
+        if let Some(manifest_url) = &pkg.manifest_blob_url
+            && !manifest_url.is_empty()
+        {
+            hashes_to_delete.insert(manifest_url.clone());
+        }
+    }
+
+    let mut freed_bytes: u64 = 0;
+    let mut deleted_files = Vec::new();
+
+    for hash in &hashes_to_delete {
+        let sub_dir = if hash.len() >= 2 {
+            hash[0..2].to_lowercase()
+        } else {
+            "00".to_string()
+        };
+        let file_path = std::path::Path::new(storage_dir)
+            .join(&sub_dir)
+            .join(hash);
+
+        if let Ok(metadata) = std::fs::metadata(&file_path) {
+            freed_bytes += metadata.len();
+            if state.storage.delete_file(hash).await.is_ok() {
+                deleted_files.push(file_path.to_string_lossy().into_owned());
+            }
+        }
+    }
+
+    tracing::info!(
+        "Audit by-label delete: label={}, matched_packages={}, deleted_files={}, freed={:.2} MB",
+        label,
+        matched_packages,
+        deleted_files.len(),
+        freed_bytes as f64 / 1024.0 / 1024.0
+    );
+
+    Ok(Json(DeleteAuditResponse {
+        status: "OK".to_string(),
+        deleted_count: deleted_files.len(),
+        freed_size: format!("{:.2} MB", freed_bytes as f64 / 1024.0 / 1024.0),
+        deleted_files,
+        label: Some(label.to_string()),
+        matched_packages: Some(matched_packages),
+    }))
+}
+
+/// Original behavior: walk the storage dir, drop every file that no package
+/// references, but only after a 10 minute safety window so we don't race
+/// with an in-flight release that's still being copied onto disk.
+async fn delete_orphaned_files(
+    state: &AppState,
+    storage_dir: &str,
+) -> Result<Json<DeleteAuditResponse>, AppError> {
     let db_packages = sqlx::query_as::<_, DbPackage>(
         "SELECT id, label, package_hash, blob_url, manifest_blob_url FROM packages",
     )
@@ -302,5 +425,7 @@ pub async fn delete_storage_audit(
         deleted_count: deleted_files.len(),
         freed_size: format!("{:.2} MB", freed_bytes as f64 / 1024.0 / 1024.0),
         deleted_files,
+        label: None,
+        matched_packages: None,
     }))
 }

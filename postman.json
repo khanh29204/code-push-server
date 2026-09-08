@@ -994,6 +994,72 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "Xóa file theo Label, giữ nguyên lịch sử trong DB (Delete Storage Audit By Label)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "description": "Xóa các tệp tin (blob + manifest) trên ổ đĩa thuộc về các package mang label chỉ định, nhưng vẫn giữ nguyên toàn bộ lịch sử trong CSDL (packages, deployments_history, packages_diff, packages_metrics không bị động vào). Khi upload lại cùng label, các file sẽ được tái tạo; trước lúc đó, những file này sẽ xuất hiện trong mục 'missingFiles' của GET /storage/audit. Nhiều package có thể chia sẻ chung một blob (ví dụ: bản release đã promote sang deployment khác); hệ thống tự động loại trùng hash nên mỗi file chỉ bị xóa đúng một lần. Chỉ áp dụng cho storageType = local.",
+            "url": {
+              "raw": "{{base_url}}/storage/audit?label=v1.0.0",
+              "host": ["{{base_url}}"],
+              "path": ["storage", "audit"],
+              "query": [
+                {
+                  "key": "label",
+                  "value": "v1.0.0",
+                  "description": "Label của các package cần dọn file trên ổ đĩa. Khoảng trắng ở đầu/cuối sẽ được trim; nếu để trống, hệ thống fallback về chế độ dọn file mồ côi như endpoint phía trên."
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "Thành công - Đã xóa file theo label",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/storage/audit?label=v1.0.0",
+                  "host": ["{{base_url}}"],
+                  "path": ["storage", "audit"],
+                  "query": [
+                    {
+                      "key": "label",
+                      "value": "v1.0.0"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"status\": \"OK\",\n  \"deletedCount\": 2,\n  \"freedSize\": \"12.34 MB\",\n  \"deletedFiles\": [\n    \"/var/lib/codepush/ab/abcdef1234567890abcdef1234567890abcdef12\",\n    \"/var/lib/codepush/cd/cdabcdef1234567890abcdef1234567890abcdef\"\n  ],\n  \"label\": \"v1.0.0\",\n  \"matchedPackages\": 1\n}"
+            },
+            {
+              "name": "Không có package nào khớp label",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/storage/audit?label=khong-ton-tai",
+                  "host": ["{{base_url}}"],
+                  "path": ["storage", "audit"],
+                  "query": [
+                    {
+                      "key": "label",
+                      "value": "khong-ton-tai"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"status\": \"OK\",\n  \"deletedCount\": 0,\n  \"freedSize\": \"0.00 MB\",\n  \"deletedFiles\": [],\n  \"label\": \"khong-ton-tai\",\n  \"matchedPackages\": 0\n}"
+            }
+          ]
         }
       ]
     }
