@@ -13,60 +13,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet"
     href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0">
+  <script src="/html/js/tailwind.config.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            primary: { DEFAULT: '#6750A4', container: '#EADDFF', on: '#FFFFFF', onContainer: '#21005D' },
-            secondary: { DEFAULT: '#625B71', container: '#E8DEF8', on: '#FFFFFF', onContainer: '#1D192B' },
-            tertiary: { DEFAULT: '#7D5260', container: '#FFD8E4', on: '#FFFFFF', onContainer: '#31111D' },
-            error: { DEFAULT: '#B3261E', container: '#F9DEDC', on: '#FFFFFF', onContainer: '#410E0B' },
-            surface: {
-              DEFAULT: '#FEF7FF', dim: '#DED8E1', bright: '#FEF7FF',
-              container: '#F3EDF7', containerLow: '#F7F2FA', containerHigh: '#ECE6F0', containerHighest: '#E6E0E9',
-              variant: '#E7E0EC', inverse: '#322F35'
-            },
-            onSurface: { DEFAULT: '#1D1B20', variant: '#49454F', inverse: '#F5EFF7' },
-            outline: { DEFAULT: '#79747E', variant: '#CAC4D0' },
-            brand: { 50: '#EADDFF', 100: '#EADDFF', 500: '#6750A4', 600: '#6750A4', 700: '#4F378B' }
-          },
-          fontFamily: { sans: ['Roboto', 'Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Helvetica', 'Arial', 'sans-serif'] },
-          borderRadius: { sm: '0.5rem', DEFAULT: '0.75rem', lg: '1rem', xl: '1.75rem', '2xl': '1.75rem' },
-          boxShadow: {
-            'm3-1': '0 1px 2px 0 rgba(0,0,0,0.30), 0 1px 3px 1px rgba(0,0,0,0.15)',
-            'm3-2': '0 1px 2px 0 rgba(0,0,0,0.30), 0 2px 6px 2px rgba(0,0,0,0.15)',
-            'm3-3': '0 4px 8px 3px rgba(0,0,0,0.15), 0 1px 3px 0 rgba(0,0,0,0.30)'
-          }
-        }
-      }
-    }
-  </script>
-  <style>
-    .material-symbols-rounded { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; line-height: 1; }
-    .m3-field {
-      width: 100%; background-color: #E6E0E9; color: #1D1B20; border: 0; border-bottom: 1px solid #79747E;
-      border-top-left-radius: 0.5rem; border-top-right-radius: 0.5rem; padding: 0.875rem 1rem; font-size: 1rem;
-      transition: background-color .15s, border-color .15s, box-shadow .15s;
-    }
-    .m3-field::placeholder { color: #49454F; }
-    .m3-field:hover { background-color: #E0DAE6; }
-    .m3-field:focus { outline: none; border-bottom: 2px solid #6750A4; background-color: #ECE6F0; }
-    .m3-btn {
-      position: relative; display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
-      border-radius: 9999px; padding: .625rem 1.5rem; font-weight: 500; font-size: .875rem; letter-spacing: .01em;
-      cursor: pointer; border: 0; transition: box-shadow .15s, background-color .15s; overflow: hidden; user-select: none;
-    }
-    .m3-btn::after { content: ''; position: absolute; inset: 0; background: currentColor; opacity: 0; transition: opacity .15s; }
-    .m3-btn:hover::after { opacity: .08; }
-    .m3-btn:active::after { opacity: .12; }
-    .m3-btn-filled { background-color: #6750A4; color: #fff; }
-    .m3-btn-filled:hover { box-shadow: 0 1px 2px 0 rgba(0,0,0,.30), 0 1px 3px 1px rgba(0,0,0,.15); }
-    .m3-btn-tonal { background-color: #E8DEF8; color: #1D192B; }
-    .m3-btn-outlined { background-color: transparent; color: #6750A4; border: 1px solid #79747E; }
-    .m3-btn-text { background-color: transparent; color: #6750A4; padding-left: 1rem; padding-right: 1rem; }
-  </style>
+  <link rel="stylesheet" href="/html/css/theme.css">
 </head>
 
 <body class="min-h-screen bg-surface-dim text-onSurface antialiased">
@@ -102,52 +51,10 @@
       </p>
     </div>
   </div>
+
+  <script src="/js/jquery-3.1.1.min.js"></script>
+  <script src="/html/js/auth.js"></script>
+  <script src="/html/js/register.js"></script>
 </body>
-<script src="/js/jquery-3.1.1.min.js"></script>
-<script>function getAccessToken() {
-    return localStorage.getItem('auth');
-}
-function ensureLogin() {
-    if (!getAccessToken()) {
-        window.location.href = '/auth/login';
-    }
-}
-function logout() {
-    localStorage.removeItem('auth');
-    location.href = '/auth/login';
-}
-function parseQuery() {
-  query = location.search.substring(1);
-  var vars = query.split('&');
-  var rs = {};
-  for (var i = 0; i < vars.length; i++) {
-    var pair = vars[i].split('=');
-    rs[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
-  }
-  return rs;
-}</script>
-<script>var submit = false;
-$('#submitBtn').on('click', function () {
-  if (submit) {
-    return ;
-  }
-  submit = true;
-  $.ajax({
-    type: 'post',
-    data: $('#form').serializeArray(),
-    url: "/users/registerCode",
-    dataType: 'json',
-    success: function (data) {
-        if (data.status == "OK") {
-          let email = $('#inputEmail').val();
-          location.href = '/auth/confirm?email=' + email;
-          submit = false;
-        } else {
-          alert(data.message);
-          submit = false;
-        }
-    }
-  });
-});</script>
 
 </html>

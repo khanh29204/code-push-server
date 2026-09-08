@@ -1,0 +1,83 @@
+/* CodePush Admin — Material 3 theme overrides on top of Tailwind CDN */
+
+[x-cloak] { display: none !important; }
+
+body { font-family: 'Roboto', ui-sans-serif, system-ui, sans-serif; }
+
+/* Material Symbols baseline */
+.material-symbols-rounded {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+/* Thin M3-style scrollbar */
+.scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: #CAC4D0; border-radius: 3px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+
+/* M3 icon button with circular state layer */
+.m3-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 40px; width: 40px; border-radius: 9999px;
+  color: #49454F; position: relative; overflow: hidden;
+  transition: background-color .15s;
+}
+.m3-icon-btn:hover  { background-color: rgba(29,27,32,.08); }
+.m3-icon-btn:active { background-color: rgba(29,27,32,.12); }
+
+/* M3 filled text field (used in auth forms + admin modals) */
+.m3-field {
+  width: 100%;
+  background-color: #E6E0E9; color: #1D1B20;
+  border: 0; border-bottom: 1px solid #79747E;
+  border-top-left-radius: 0.5rem; border-top-right-radius: 0.5rem;
+  padding: 0.875rem 1rem; font-size: 1rem;
+  transition: background-color .15s, border-color .15s, box-shadow .15s;
+}
+.m3-field::placeholder { color: #49454F; }
+.m3-field:hover  { background-color: #E0DAE6; }
+.m3-field:focus  { outline: none; border-bottom: 2px solid #6750A4; background-color: #ECE6F0; }
+select.m3-field  { padding-right: 2rem; }
+
+/* M3 buttons */
+.m3-btn {
+  position: relative; display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+  border-radius: 9999px; padding: .625rem 1.5rem;
+  font-weight: 500; font-size: .875rem; letter-spacing: .01em;
+  cursor: pointer; border: 0;
+  transition: box-shadow .15s, background-color .15s;
+  overflow: hidden; user-select: none;
+}
+.m3-btn::after { content: ''; position: absolute; inset: 0; background: currentColor; opacity: 0; transition: opacity .15s; }
+.m3-btn:hover::after  { opacity: .08; }
+.m3-btn:active::after { opacity: .12; }
+
+.m3-btn-filled   { background-color: #6750A4; color: #fff; }
+.m3-btn-filled:hover { box-shadow: 0 1px 2px 0 rgba(0,0,0,.30), 0 1px 3px 1px rgba(0,0,0,.15); }
+.m3-btn-tonal    { background-color: #E8DEF8; color: #1D192B; }
+.m3-btn-outlined { background-color: transparent; color: #6750A4; border: 1px solid #79747E; }
+.m3-btn-text     { background-color: transparent; color: #6750A4; }
+
+/* Toast enter animation */
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* Fallback: nếu play-CDN không generate bg-surface-containerHigh kịp */
+.animate-in { animation: toast-in .18s ease-out; }
+.bg-surface-containerHigh { background-color: #ECE6F0 !important; }
+.bg-surface-containerLow  { background-color: #F7F2FA !important; }
+.bg-surface-containerHighest { background-color: #E6E0E9 !important; }
+.bg-surface-container     { background-color: #F3EDF7 !important; }
+
+/* Fallback M3 text colors — play-CDN không generate kịp cho DOM động */
+.text-primary           { color: #6750A4 !important; }
+.text-on-primary        { color: #FFFFFF !important; }
+.text-secondary         { color: #625B71 !important; }
+.text-tertiary          { color: #7D5260 !important; }
+.text-on-tertiary       { color: #FFFFFF !important; }
+.text-error             { color: #B3261E !important; }
+.text-on-error          { color: #FFFFFF !important; }
+.text-onSurface         { color: #1D1B20 !important; }
+.text-onSurface-variant { color: #49454F !important; }
+.text-outline           { color: #79747E !important; }
+.text-background        { color: #FEF7FF !important; }
