@@ -93,6 +93,7 @@ Chi tiết các biến cấu hình:
 | `LOG_LEVEL` | `info` | Cấp độ log (`trace`, `debug`, `info`, `warn`, `error`) |
 | `DATABASE_URL` | `sqlite://../data/codepush.db` | Đường dẫn kết nối SQLite |
 | `JWT_TOKEN_SECRET` | - | Secret key mã hóa JWT (Chuỗi ngẫu nhiên 64 ký tự) |
+| `REDIS_URL` | `redis://127.0.0.1:6379/0` | URL kết nối Redis (ưu tiên cao nhất) |
 | `REDIS_HOST` | `127.0.0.1` | Địa chỉ Redis host |
 | `REDIS_PORT` | `6379` | Cổng kết nối Redis |
 | `REDIS_PASSWORD` | - | Mật khẩu Redis (nếu có) |

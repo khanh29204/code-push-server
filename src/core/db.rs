@@ -47,25 +47,10 @@ impl Db {
         Self::seed_defaults(&pool).await?;
 
         // Redis part
-        let redis_url = if let Some(pwd) = &config.redis.password {
-            format!(
-                "redis://:{}@{}:{}/{}",
-                pwd, config.redis.host, config.redis.port, config.redis.db
-            )
-        } else {
-            format!(
-                "redis://{}:{}/{}",
-                config.redis.host, config.redis.port, config.redis.db
-            )
-        };
-        let manager = RedisConnectionManager::new(redis_url)?;
+        let manager = RedisConnectionManager::new(config.redis.url.as_str())?;
         let redis = bb8::Pool::builder().build(manager).await?;
 
-        tracing::info!(
-            "Connected to Redis at {}:{}",
-            config.redis.host,
-            config.redis.port
-        );
+        tracing::info!("Connected to Redis at {}", config.redis.url);
 
         Ok(Self { pool, redis })
     }

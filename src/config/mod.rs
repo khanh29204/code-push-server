@@ -3,10 +3,7 @@ use std::env;
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct RedisConfig {
-    pub host: String,
-    pub port: u16,
-    pub password: Option<String>,
-    pub db: u16,
+    pub url: String,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -84,16 +81,15 @@ impl AppConfig {
 
         // Redis
         let redis = RedisConfig {
-            host: env::var("REDIS_HOST").unwrap_or_else(|_| "127.0.0.1".to_string()),
-            port: env::var("REDIS_PORT")
-                .unwrap_or_else(|_| "6379".to_string())
-                .parse()
-                .unwrap_or(6379),
-            password: env::var("REDIS_PASSWORD").ok().filter(|s| !s.is_empty()),
-            db: env::var("REDIS_DB")
-                .unwrap_or_else(|_| "0".to_string())
-                .parse()
-                .unwrap_or(0),
+            url: env::var("REDIS_URL").unwrap_or_else(|_| {
+                let host = env::var("REDIS_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+                let port = env::var("REDIS_PORT").unwrap_or_else(|_| "6379".to_string());
+                let db = env::var("REDIS_DB").unwrap_or_else(|_| "0".to_string());
+                match env::var("REDIS_PASSWORD").ok().filter(|s| !s.is_empty()) {
+                    Some(pwd) => format!("redis://:{}@{}:{}/{}", pwd, host, port, db),
+                    None => format!("redis://{}:{}/{}", host, port, db),
+                }
+            }),
         };
 
         // Storage
