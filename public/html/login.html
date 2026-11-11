@@ -31,7 +31,7 @@
 
       <!-- Card -->
       <div class="bg-surface-containerLow rounded-xl shadow-m3-1 border border-outline-variant p-6 sm:p-8">
-        <form class="form-signin" id="form" method="post">
+        <form class="form-signin" id="form" method="post" action="/auth/login">
           <h2 class="form-signin-heading text-xl font-medium text-onSurface mb-1" data-i18n="Please sign in">Please
             sign in</h2>
           <p class="text-sm text-onSurface-variant mb-6">Access your hot-update dashboard.</p>
@@ -49,7 +49,8 @@
             </div>
           </div>
 
-          <a class="btn m3-btn m3-btn-filled w-full mt-6 py-3" id="submitBtn" data-i18n="Log in">Log in</a>
+          <p id="formError" role="alert" aria-live="polite" hidden class="mt-4 text-sm text-error"></p>
+          <button class="btn m3-btn m3-btn-filled w-full mt-6 py-3" id="submitBtn" type="submit" data-i18n="Log in">Log in</button>
           <a class="btn m3-btn m3-btn-text w-full mt-3 py-3" id="registerBtn" href="/auth/register"
             style="display: none;" data-i18n="Register">Register</a>
         </form>

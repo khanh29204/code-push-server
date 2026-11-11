@@ -18,15 +18,15 @@
 <body class="min-h-screen bg-surface-dim text-onSurface antialiased">
   <!-- Top app bar -->
   <header class="border-b border-outline-variant bg-surface/90 backdrop-blur sticky top-0 z-20">
-    <div class="mx-auto px-4 h-16 flex items-center justify-between">
-      <div class="flex items-center gap-2.5">
+    <div class="mx-auto min-w-0 px-4 h-16 flex items-center justify-between">
+      <div class="flex min-w-0 items-center gap-2.5">
         <button id="sidebarToggle" class="sm:hidden m3-icon-btn">
           <span class="material-symbols-rounded">menu</span>
         </button>
         <div class="h-10 w-10 rounded-lg bg-primary-container text-primary-onContainer flex items-center justify-center">
           <span class="material-symbols-rounded" style="font-size:22px">rocket_launch</span>
         </div>
-        <span class="font-medium text-lg text-onSurface">CodePush Admin</span>
+        <span class="hidden sm:inline font-medium text-lg text-onSurface">CodePush Admin</span>
         <span id="accountBadge" class="hidden sm:inline-block ml-3 text-xs text-onSurface-variant truncate max-w-[120px]"></span>
       </div>
       <div class="flex items-center gap-1">
@@ -82,6 +82,12 @@
             </button>
           </div>
         </div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <button id="appSettingsBtn" data-i18n="appSettings" class="m3-btn m3-btn-text text-xs py-1 px-3">App settings</button>
+          <button id="accessKeysBtn" data-i18n="accessKeys" class="m3-btn m3-btn-text text-xs py-1 px-3">Access keys</button>
+          <button id="storageAuditBtn" data-i18n="storageAudit" class="m3-btn m3-btn-text text-xs py-1 px-3">Storage audit</button>
+          <button id="diagnosticsBtn" data-i18n="diagnostics" class="m3-btn m3-btn-text text-xs py-1 px-3">Diagnostics</button>
+        </div>
         <div id="deploymentTabs" class="flex items-end gap-1 -mb-px overflow-x-auto scrollbar-thin"></div>
       </div>
 
@@ -125,15 +131,18 @@
 
       <!-- History table -->
       <div class="flex-1 overflow-auto scrollbar-thin bg-surface-dim p-3 sm:p-6">
+        <div id="cleanupResultsContainer" class="hidden mb-3"></div>
         <div id="emptyState" class="hidden flex flex-col items-center justify-center h-full text-onSurface-variant">
           <span class="material-symbols-rounded mb-3 text-outline" style="font-size:56px">inbox</span>
           <p class="text-sm" data-i18n="emptySelect">Select an app and deployment to view releases.</p>
         </div>
         <div id="tableWrap" class="hidden bg-surface rounded-xl border border-outline-variant shadow-m3-1 overflow-hidden">
+          <div id="bulkActions" class="px-4 py-2 border-b border-outline-variant"></div>
           <div class="overflow-x-auto">
             <table class="w-full text-sm">
               <thead class="bg-surface-variant border-b border-outline-variant text-onSurface-variant">
                 <tr>
+                  <th class="text-left font-medium px-3 py-2.5" data-i18n="thSelect">Select release</th>
                   <th class="text-left font-medium px-3 py-2.5" data-i18n="thLabel">Label</th>
                   <th class="text-left font-medium px-3 py-2.5" data-i18n="thAppVersion">App version</th>
                   <th class="text-left font-medium px-3 py-2.5" data-i18n="thDescription">Description</th>
@@ -166,6 +175,7 @@
   <script src="/html/js/data.js"></script>
   <script src="/html/js/render.js"></script>
   <script src="/html/js/actions.js"></script>
+  <script src="/html/js/admin.js"></script>
   <script src="/html/js/main.js"></script>
 </body>
 

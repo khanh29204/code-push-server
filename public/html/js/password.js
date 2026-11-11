@@ -1,34 +1,19 @@
 // ------------------------ Change password page ------------------------
 // Depends on: jQuery, auth.js (getAccessToken, ensureLogin, logout)
 
-ensureLogin();
+var pageReady = ensureLogin();
 
-var submit = false;
-$('#submitBtn').on('click', function () {
-  if (submit) return;
-  submit = true;
-  var accessToken = getAccessToken();
-  var oldPassword = $('#inputPassword').val();
-  var newPassword = $('#inputNewPassword').val();
-  $.ajax({
-    type: 'patch',
-    data: JSON.stringify({ oldPassword: oldPassword, newPassword: newPassword }),
-    contentType: 'application/json;charset=utf-8',
-    headers: { Authorization: 'Bearer ' + accessToken },
-    url: '/users/password',
-    dataType: 'json',
-    success: function (data) {
-      if (data.status == 'OK') {
-        alert('change success');
-        logout();
-      } else if (data.status == 401) {
-        alert('token invalid');
-        logout();
-      } else {
-        alert(data.message);
-      }
-      submit = false;
-    },
-    error: function () { submit = false; }
+authBindForm(async function (form) {
+  if (!(await pageReady)) return;
+  var oldPassword = form.elements.oldPassword.value;
+  var newPassword = form.elements.newPassword.value;
+  if (newPassword.length < 6 || newPassword.length > 20) {
+    throw new Error('Please enter a new password between 6 and 20 characters long.');
+  }
+  await authRequest('/users/password', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getAccessToken() },
+    body: JSON.stringify({ oldPassword: oldPassword, newPassword: newPassword })
   });
+  logout();
 });

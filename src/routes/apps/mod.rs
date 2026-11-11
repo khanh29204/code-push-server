@@ -6,19 +6,29 @@ use axum::{
 use crate::core::db::AppState;
 
 pub mod app_handlers;
+pub mod bulk;
 pub mod collaborators;
 pub mod deployments;
 pub mod releases;
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/", get(app_handlers::list_apps).post(app_handlers::create_app))
+        .route(
+            "/",
+            get(app_handlers::list_apps).post(app_handlers::create_app),
+        )
         .route(
             "/{app_name}",
             delete(app_handlers::delete_app).patch(app_handlers::rename_app),
         )
-        .route("/{app_name}/transfer/{email}", post(app_handlers::transfer_app))
-        .route("/{app_name}/collaborators", get(collaborators::get_collaborators))
+        .route(
+            "/{app_name}/transfer/{email}",
+            post(app_handlers::transfer_app),
+        )
+        .route(
+            "/{app_name}/collaborators",
+            get(collaborators::get_collaborators),
+        )
         .route(
             "/{app_name}/collaborators/{email}",
             post(collaborators::add_collaborator).delete(collaborators::remove_collaborator),
@@ -44,6 +54,10 @@ pub fn router() -> Router<AppState> {
         .route(
             "/{app_name}/deployments/{deployment_name}/release",
             post(releases::release_package).patch(releases::modify_release_package),
+        )
+        .route(
+            "/{app_name}/deployments/{deployment_name}/releases/bulk",
+            axum::routing::patch(bulk::patch_bulk).delete(bulk::delete_bulk),
         )
         .route(
             "/{app_name}/deployments/{deployment_name}/releases/{label}",

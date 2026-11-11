@@ -16,25 +16,15 @@ $('#okBtn').on('click', function () {
   location.href = '/auth/login?email=' + encodeURIComponent($('#inputEmail').val());
 });
 
-var submit = false;
-$('#submitBtn').on('click', function () {
-  if (submit) return;
-  console.log($('#form').serializeArray());
-  submit = true;
-  $.ajax({
-    type: 'post',
-    data: $('#form').serializeArray(),
-    url: '/users/',
-    dataType: 'json',
-    success: function (data) {
-      if (data.status == 'OK') {
-        showModal();
-        submit = false;
-      } else {
-        alert(data.message);
-        submit = false;
-      }
-    },
-    error: function () { submit = false; }
+authBindForm(async function (form) {
+  await authRequest('/users/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email: form.elements.email.value,
+      token: form.elements.token.value,
+      password: form.elements.password.value
+    })
   });
+  showModal();
 });

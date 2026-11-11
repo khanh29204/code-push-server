@@ -8,7 +8,93 @@ const state = {
   currentDeployment: null,
   history: [],
   metrics: {},
+  selectedLabels: new Set(),
+  selectionTarget: null,
+  contextGeneration: 0,
+  appLoadGeneration: 0,
+  deploymentLoadGeneration: 0,
+  historyLoadGeneration: 0,
+  busy: false,
 };
+
+function releaseContextKey(app = state.currentApp, dep = state.currentDeployment) {
+  return app && dep ? `${app.name}\0${dep.name}` : null;
+}
+
+function clearSelectedReleases() {
+  state.selectedLabels.clear();
+  state.selectionTarget = releaseContextKey();
+}
+
+function syncReleaseSelectionContext() {
+  const key = releaseContextKey();
+  if (state.selectionTarget !== key) {
+    state.selectedLabels.clear();
+    state.selectionTarget = key;
+  }
+}
+
+function selectDisplayedReleases(checked) {
+  syncReleaseSelectionContext();
+  const labels = displayedReleaseLabels();
+  if (checked) for (const label of labels) state.selectedLabels.add(label);
+  else for (const label of labels) state.selectedLabels.delete(label);
+}
+
+function displayedReleaseLabels() {
+  return new Set(displayedReleaseHistory().map(p => p.label));
+}
+
+function displayedReleaseHistory() {
+  const limit = Number(document.getElementById('historyLimit').value) || 100;
+  const seen = new Set();
+  return state.history.slice().sort((a, b) => (b.uploadTime || 0) - (a.uploadTime || 0)).filter(p => {
+    if (!p.label || seen.has(p.label)) return false;
+    seen.add(p.label);
+    return true;
+  }).slice(0, limit);
+}
+
+function toggleSelectedRelease(label, checked) {
+  syncReleaseSelectionContext();
+  if (checked) state.selectedLabels.add(label);
+  else state.selectedLabels.delete(label);
+}
+
+function pruneSelectedReleases() {
+  syncReleaseSelectionContext();
+  const labels = new Set(state.history.map(p => p.label).filter(Boolean));
+  state.selectedLabels = new Set([...state.selectedLabels].filter(label => labels.has(label)));
+}
+
+function selectedReleaseLabels() {
+  syncReleaseSelectionContext();
+  const labels = displayedReleaseLabels();
+  return [...state.selectedLabels].filter(label => labels.has(label));
+}
+
+function captureReleaseTarget() {
+  return state.currentApp && state.currentDeployment
+    ? { appName: state.currentApp.name, deploymentName: state.currentDeployment.name, generation: state.contextGeneration }
+    : null;
+}
+
+function releaseTargetIsCurrent(target) {
+  return !!target && state.contextGeneration === target.generation && state.currentApp?.name === target.appName && state.currentDeployment?.name === target.deploymentName;
+}
+
+function buildBulkPackageInfo(form) {
+  const packageInfo = {};
+  for (const field of ['isDisabled', 'isMandatory']) {
+    if (form[field] === 'on') packageInfo[field] = true;
+    else if (form[field] === 'off') packageInfo[field] = false;
+  }
+  if (form.rollout !== '' && form.rollout != null) {
+    const rollout = Number(form.rollout);
+    if (Number.isInteger(rollout) && rollout >= 1 && rollout <= 100) packageInfo.rollout = rollout;
+  }
+  return packageInfo;
+}
 
 const token = () => localStorage.getItem('auth');
 if (!token()) location.href = '/auth/login';
@@ -49,7 +135,8 @@ async function api(method, path, body, opts = {}) {
   const text = await res.text();
   let data = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = text; }
-  if (!res.ok) {
+  const status = data && typeof data.status === 'string' ? data.status.toUpperCase() : '';
+  if (!res.ok || status === 'ERROR') {
     const msg = (data && (data.message || data.error)) || text || `HTTP ${res.status}`;
     throw new Error(msg);
   }

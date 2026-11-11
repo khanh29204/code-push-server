@@ -38,7 +38,7 @@
           <div class="space-y-4">
             <div class="form-group">
               <label class="block text-sm font-medium text-onSurface-variant mb-1.5" for="inputEmail">Email address</label>
-              <input class="form-control m3-field" id="inputEmail" type="text" name="email" placeholder="Email address" required>
+              <input class="form-control m3-field" id="inputEmail" type="email" name="email" placeholder="Email address" required>
             </div>
             <div class="form-group">
               <label class="block text-sm font-medium text-onSurface-variant mb-1.5" for="inputToken">Token</label>
@@ -46,11 +46,12 @@
             </div>
             <div class="form-group">
               <label class="block text-sm font-medium text-onSurface-variant mb-1.5" for="inputPassword">Create password</label>
-              <input class="form-control m3-field" id="inputPassword" type="password" name="password" placeholder="Password" required>
+              <input class="form-control m3-field" id="inputPassword" type="password" name="password" placeholder="Password" minlength="6" maxlength="20" required>
             </div>
           </div>
 
-          <a class="btn m3-btn m3-btn-filled w-full mt-6 py-3" id="submitBtn">Confirm</a>
+          <p id="formError" role="alert" aria-live="polite" hidden class="mt-4 text-sm text-error"></p>
+          <button class="btn m3-btn m3-btn-filled w-full mt-6 py-3" id="submitBtn" type="submit">Confirm</button>
         </form>
       </div>
     </div>

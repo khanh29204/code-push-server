@@ -1,68 +1,58 @@
 // ------------------------ Obtain access token page ------------------------
 // Depends on: jQuery, auth.js (getAccessToken, ensureLogin, parseQuery)
 
-ensureLogin();
+var pageReady = ensureLogin();
+var generating = false;
 
-var submit = false;
-
-$('#submitBtn').on('click', function () {
-  if (submit) return;
-  submit = true;
-  var query = parseQuery();
-  var createdBy = query.hostname;
-  var time = (new Date()).getTime();
-  if (createdBy == null || createdBy == undefined || createdBy == '') {
-    createdBy = 'Login-' + time;
+async function generateToken(button) {
+  if (generating) return;
+  generating = true;
+  button.disabled = true;
+  try {
+    if (!(await pageReady)) return;
+    authShowError('');
+    var query = parseQuery();
+    var time = (new Date()).getTime();
+    var createdBy = query.hostname || 'Login-' + time;
+    var postParams = {
+      createdBy: createdBy,
+      friendlyName: 'Login-' + time,
+      ttl: String(60 * 60 * 24 * 30 * 1000),
+      description: 'Login-' + time
+    };
+    var data = await authRequest('/accessKeys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getAccessToken() },
+      body: JSON.stringify(postParams)
+    });
+    if (!data.accessKey || !data.accessKey.name) throw new Error('The server did not return an access token.');
+    $('#generateSection').hide();
+    $('#tipsSuccess').show();
+    $('#key').val(data.accessKey.name).show();
+    $('#copyBtn').show();
+    $('#tipsClose').show();
+  } catch (error) {
+    authShowError(error.message);
+  } finally {
+    generating = false;
+    button.disabled = false;
   }
+}
 
-  // TODO: make ttl and friendlyName configurable
-  var postParams = {
-    createdBy: createdBy,
-    friendlyName: 'Login-' + time,
-    ttl: 60 * 60 * 24 * 30 * 1000,
-    description: 'Login-' + time,
-    isSession: true
-  };
-  var accessToken = getAccessToken();
-  $.ajax({
-    type: 'post',
-    data: postParams,
-    headers: { Authorization: 'Bearer ' + accessToken },
-    url: '/accessKeys',
-    dataType: 'json',
-    success: function (data) {
-      submit = false;
-      $('#generateSection').hide();
-      $('#tipsSuccess').show();
-      $('#key').val(data.accessKey.name);
-      $('#key').show();
-      $('#copyBtn').show();
-      $('#tipsClose').show();
-    },
-    error: function (XMLHttpRequest, textStatus, errorThrown) {
-      submit = false;
-      if (errorThrown == 'Unauthorized') {
-        alert('please login again!');
-        location.href = '/auth/login';
-      } else {
-        alert(errorThrown);
-      }
-    }
-  });
-});
+$('#submitBtn').on('click', function () { return generateToken(this); });
 
-$('#copyBtn').on('click', function () {
+$('#copyBtn').on('click', async function () {
   var input = document.getElementById('key');
   input.select();
   input.setSelectionRange(0, 99999);
   try {
-    navigator.clipboard.writeText(input.value).then(function () {
-      $('#copyLabel').text('Copied');
-      setTimeout(function () { $('#copyLabel').text('Copy'); }, 1500);
-    });
-  } catch (e) {
-    document.execCommand('copy');
-    $('#copyLabel').text('Copied');
-    setTimeout(function () { $('#copyLabel').text('Copy'); }, 1500);
+    await navigator.clipboard.writeText(input.value);
+  } catch (error) {
+    if (!document.execCommand('copy')) {
+      authShowError('Copy failed. Select and copy the token manually.');
+      return;
+    }
   }
+  $('#copyLabel').text('Copied');
+  setTimeout(function () { $('#copyLabel').text('Copy'); }, 1500);
 });

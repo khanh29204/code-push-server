@@ -12,30 +12,20 @@ function onLoggedIn() {
 }
 
 if (getAccessToken()) {
-  onLoggedIn();
+  authRequest('/authenticated', { headers: { Authorization: 'Bearer ' + getAccessToken() } })
+    .then(onLoggedIn)
+    .catch(function () { localStorage.removeItem('auth'); });
 }
 
-var submit = false;
-$('#submitBtn').on('click', function () {
-  if (submit) return;
-  submit = true;
-  $.ajax({
-    type: 'post',
-    data: $('#form').serializeArray(),
-    url: $('#form').attr('action'),
-    dataType: 'json',
-    success: function (data) {
-      if (data.status == 'OK') {
-        localStorage.setItem('auth', data.results.tokens);
-        submit = false;
-        onLoggedIn();
-      } else {
-        alert(data.message);
-        submit = false;
-      }
-    },
-    error: function () { submit = false; }
+authBindForm(async function (form) {
+  var data = await authRequest(form.action || '/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ account: form.elements.account.value, password: form.elements.password.value })
   });
+  if (!data.results || !data.results.tokens) throw new Error('The server did not return an access token.');
+  localStorage.setItem('auth', data.results.tokens);
+  onLoggedIn();
 });
 
 // Show "Register" button if server allows self-registration

@@ -46,10 +46,10 @@
           <span class="material-symbols-rounded" style="font-size:32px">key</span>
         </div>
         <p class="text-sm text-onSurface-variant mb-6 text-center">Click below to generate a new access key.</p>
-        <a class="btn m3-btn m3-btn-filled px-6 py-3" id="submitBtn">
+        <button class="btn m3-btn m3-btn-filled px-6 py-3" id="submitBtn" type="button">
           <span class="material-symbols-rounded" style="font-size:20px">add</span>
           Obtain token
-        </a>
+        </button>
       </div>
 
       <!-- Success state -->
@@ -81,6 +81,7 @@
           </div>
         </div>
       </div>
+      <p id="formError" role="alert" aria-live="polite" hidden class="mt-4 text-sm text-error text-center"></p>
     </div>
   </main>
 

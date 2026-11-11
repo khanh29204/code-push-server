@@ -29,13 +29,16 @@ document.getElementById('langBtn').onclick = () => setLang(currentLang === 'vi' 
 document.getElementById('newAppBtn').onclick = createApp;
 document.getElementById('renameAppBtn').onclick = renameApp;
 document.getElementById('deleteAppBtn').onclick = deleteApp;
-document.getElementById('refreshBtn').onclick = () => loadHistory().catch(e => toast(e.message, 'error'));
-document.getElementById('historyLimit').onchange = () => loadHistory().catch(e => toast(e.message, 'error'));
-document.getElementById('promoteBtn').onclick = promotePackage;
-document.getElementById('rollbackLatestBtn').onclick = rollbackLatest;
-document.getElementById('clearHistoryBtn').onclick = clearHistory;
-document.getElementById('renameDepBtn').onclick = renameDeployment;
-document.getElementById('deleteDepBtn').onclick = deleteDeployment;
+for (const [id, action] of [['appSettingsBtn', 'openAppSettings'], ['accessKeysBtn', 'openAccessKeys'], ['storageAuditBtn', 'openStorageAudit'], ['diagnosticsBtn', 'openDiagnostics']]) {
+  document.getElementById(id).onclick = () => { if (typeof window[action] === 'function') window[action](); };
+}
+document.getElementById('refreshBtn').onclick = () => { if (!state.busy) loadHistory().catch(e => toast(e.message, 'error')); };
+document.getElementById('historyLimit').onchange = () => { if (!state.busy) loadHistory().catch(e => toast(e.message, 'error')); };
+document.getElementById('promoteBtn').onclick = () => { if (!state.busy) promotePackage(); };
+document.getElementById('rollbackLatestBtn').onclick = () => { if (!state.busy) rollbackLatest(); };
+document.getElementById('clearHistoryBtn').onclick = () => { if (!state.busy) clearHistory(); };
+document.getElementById('renameDepBtn').onclick = () => { if (!state.busy) renameDeployment(); };
+document.getElementById('deleteDepBtn').onclick = () => { if (!state.busy) deleteDeployment(); };
 document.getElementById('copyKeyBtn').onclick = () => {
   const key = document.getElementById('depKey').textContent;
   if (!key) return;
@@ -47,6 +50,7 @@ fetch('/account', { headers: { Authorization: 'Bearer ' + token() } })
   .then(r => r.ok ? r.json() : null)
   .then(d => {
     if (!d) return;
+    if (state.busy) return;
     const acc = d.account || d;
     const label = acc.email || acc.username || acc.name;
     if (label) {
